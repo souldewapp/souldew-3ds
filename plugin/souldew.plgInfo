@@ -1,0 +1,31 @@
+Author: souldew
+
+Version:
+    Major: 0
+    Minor: 1
+    Revision: 0
+
+Targets: # X/Y, Omega Ruby/Alpha Sapphire, Sun/Moon, Ultra Sun/Ultra Moon
+    - 0x00055D00
+    - 0x00055E00
+    - 0x0011C400
+    - 0x0011C500
+    - 0x00164800
+    - 0x00175E00
+    - 0x001B5000
+    - 0x001B5100
+
+Title: souldew
+
+Summary: Nuzlocke tracker overlays
+
+Description: |
+  souldew for Nintendo 3DS: tracks your Nuzlocke while you play (first encounter
+  per area, dupes, deaths, level caps) and shows short overlays at the important
+  moments. SELECT or the bottom-right corner opens souldew's screens.
+
+Compatibility: Any
+
+MemorySize: 5MiB
+
+UsePrivateMemory: false

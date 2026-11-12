@@ -1,0 +1,11 @@
+build/
+dist/
+*.elf
+*.smdh
+launcher/build*/
+plugin/build-*/
+mockgame/build/
+*.3dsx
+*.3gx
+*.cxi
+.DS_Store

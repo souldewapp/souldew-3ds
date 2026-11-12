@@ -1,0 +1,137 @@
+[
+ {
+  "gen": 6,
+  "hex": "7e16dcd30000531194a507ecc89e460145bfcbed722098bb486a553a95e237871aa832d8cea60c4dd29afdef493c8fbc9ba0678ba55aee7e207c8b79c4d757bab682050b8d660e85c30457dde8343c0fb7f1d20d02f6e27e6674958743382dd07e72cd419610f32f202917996172dd9c4c581e294cd772d296b19cc6a1b442b4197e6380c9c79ae7abaf7fca61f9181951d19b376efec838f58aa364a9995fc656acaafa96e1c6bf3ff30eebd5d3d9f3fb00d949b8c96bbd07336a6a15a28d6a095354225cb40fd400528656ebe046e9bd82ab36a05210349107d9caafc01599486752b7b6674ed804a707ec12b96a1d51bfdfed4020aabb8ffccd37a7e237871aa832d8",
+  "expect": {
+   "key": "0daa96f5-10207-7212",
+   "pid": 229283573,
+   "ec": 3554416254,
+   "species": 656,
+   "form": 0,
+   "nickname": "Froxy",
+   "isEgg": false,
+   "item": 0,
+   "moves": [
+    33,
+    45
+   ],
+   "metLocation": 10,
+   "eggLocation": 0,
+   "metLevel": 5,
+   "gender": "M",
+   "shiny": false,
+   "status": 0,
+   "level": 5,
+   "hp": 20,
+   "maxHp": 20
+  }
+ },
+ {
+  "gen": 6,
+  "hex": "fb62ad3e0000339d59cd9cc435cc440b2deabbb65f971dedecb1c34cf232851cb99a0f4370c8acc0143b6028561694d52f216d8e6273d3d6462724a45076486c28c83f697b145e50f537d5f1fe99b6582945126d8374ebe7d8452ae31560aa693a958bde78196ed86a655d748e5015fd6ae9fe5ffc46b0136a1b6a260d1499e949a3f873d58ecbc85ba10a2a99656dc46c61b6cf6df1af3a053ab9591fb1d99fed1bab7d538ea0e6f2957304ef50bb197d52fdcfa02bc757f1472b883d5506baa937d303f3a35c1c974943bca1dc3da1d73bdb6ffd0bd27eb98f162c97fcfc8699fcb7aef6ddab491ccdfdc458cc300b44ea91b604972feddeb1f14cc032851cb99a2e43",
+  "expect": {
+   "key": "20da7756-53016-44401",
+   "pid": 551188310,
+   "ec": 1051550459,
+   "species": 661,
+   "form": 0,
+   "nickname": "Dartiri",
+   "isEgg": false,
+   "item": 0,
+   "moves": [
+    33,
+    45
+   ],
+   "metLocation": 12,
+   "eggLocation": 0,
+   "metLevel": 31,
+   "gender": "M",
+   "shiny": false,
+   "status": 64,
+   "level": 31,
+   "hp": 0,
+   "maxHp": 88
+  }
+ },
+ {
+  "gen": 7,
+  "hex": "c4c4ac690000458d5996a03bb9fd25c0e1ff2607842cbbdfe81c526e92a6c8bc1cd31d1d4fe140411a3e1c413c6eba80c84b31fcb7fc0b1c0e85bd515f79fb5377de54ce58f23211359756700603282aec96e5c6000ea70a96e20cec9108f3a57470b8bbb0798c694a9c88efd192e86638496abf547cdf38ff0e76ed3df54adbd4022fe02a3ae6587639091d81677d7382562be7e8ca46aa05bd7506f9d78c425235c4fa36b48e36161c741f3a8ea62ea96e25833134ade8a648c2778a9d9cb1bda6bf1eea5b76d5c682a17563276529199dc2a6e5f923141e8753a2f4639bb81fc3a8439a54cf261f96c13bc2fd5fc016ff0f07b62c89dfda1c606ea0a6c8bc1cd33c1d",
+  "expect": {
+   "key": "525f3673-44973-45794",
+   "pid": 1381971571,
+   "ec": 1772930244,
+   "species": 722,
+   "form": 0,
+   "nickname": "Bauzé",
+   "isEgg": false,
+   "item": 0,
+   "moves": [
+    33,
+    45
+   ],
+   "metLocation": 6,
+   "eggLocation": 0,
+   "metLevel": 14,
+   "gender": "M",
+   "shiny": false,
+   "status": 16,
+   "level": 14,
+   "hp": 30,
+   "maxHp": 41
+  }
+ },
+ {
+  "gen": 7,
+  "hex": "a999707e00003cb15ee50fd144eb94ed9720c67ac7cc1e18aa1eaac32627cebfd8eb2175888cd96bdeab72ca73b382de62f918c7f32f883023ea379be16328d6275b5d37672f46ffdcbed309c225e6c680a9353d494ae0e5c3bf444cae99d3dcaaebfafe84e35ac9b6fbf72401dc7d5a44109ba0046e6a986d7bae982a850473bcf565e25be9fb4deb5083f618d77df63f03240eb66dacc31e3a582ce727b0c853500f3820c94f543ecfed6e555b4a3f405e73cbc82b6a4e5c44b92fa456ccea1a60816912e4b936aeb98863b4bcc92059131f18832ba9da0f1cfa18174b0c175a2848c02603df3279e60fd10ef05b2bbb21eb7bf5cc2c18c4f665871427cebfd8eb2175",
+  "expect": {
+   "key": "44fde85c-6958-50895",
+   "pid": 1157490780,
+   "ec": 2121308585,
+   "species": 807,
+   "form": 0,
+   "nickname": "Zeraora",
+   "isEgg": false,
+   "item": 0,
+   "moves": [
+    33,
+    45
+   ],
+   "metLocation": 40,
+   "eggLocation": 0,
+   "metLevel": 100,
+   "gender": "M",
+   "shiny": false,
+   "status": 0,
+   "level": 100,
+   "hp": 300,
+   "maxHp": 301
+  }
+ },
+ {
+  "gen": 6,
+  "hex": "3abcff9f000039f9045a51712628212b9c395afbcdcfdb303a9a1d4fbf53912d2e7558ba50ea7319c576adfdf1c79743db428a1a328f0aaf2c53a96c57bfcffda4f4195a25cc280858671c46fc0013a4b90953ce2a811761060318b67df93f3c02212a2419d76690e6dc91168c10b5c699bbb5301f066a8b1e7ddb476e7ada8a4dcfae513a6cb8fac67736997df096732129f35dbff3acde6a774341a745d87bcc9f0626d5c9e6438b178366eee1102b7916e5849364a807916fe1b7e6b7b321014ed1fe76dbf8ac0b2b06951783bbb5fe8943f5f489e43faf9886c72757249fb300f363ed6b24611c5a5171ca2869058a3943fbffcfe930e94e4f328d51912d2e7558ba",
+  "expect": {
+   "key": "7d60d4e1-235-11848",
+   "pid": 2103497953,
+   "ec": 2684337210,
+   "species": 29,
+   "form": 0,
+   "nickname": "Nido♀",
+   "isEgg": false,
+   "item": 0,
+   "moves": [
+    33,
+    45
+   ],
+   "metLocation": 30,
+   "eggLocation": 0,
+   "metLevel": 7,
+   "gender": "F",
+   "shiny": false,
+   "status": 8,
+   "level": 7,
+   "hp": 22,
+   "maxHp": 25
+  }
+ }
+]
