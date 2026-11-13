@@ -418,7 +418,7 @@ int main(int argc, char **argv) {
               fmt(tr("%s \xc2\xb7 das ist dein Fang", "%s \xc2\xb7 this is your catch"), areaLabel(6, r8, "Route 8", g_lang).c_str()), 278};
   Event dupe{EventKind::DupeEncounter, Tone::Warn, fmt(tr("Dupe: %s", "Dupe: %s"), (std::string(speciesName(661, g_lang)) + " Lv 12").c_str()),
              tr("Schon im Lauf \xc2\xb7 z\xc3\xa4hlt nicht, n\xc3\xa4" "chste Begegnung z\xc3\xa4hlt", "Already in the run \xc2\xb7 doesn't count, the next one does"), 661};
-  Event death{EventKind::Death, Tone::Danger, fmt(tr("%s ist gefallen", "%s has fainted"), "Leo"),
+  Event death{EventKind::Death, Tone::Danger, fmt(tr("%s ist gefallen", "%s has fallen"), "Leo"),
               fmt(tr("gegen %s \xc2\xb7 in die Box", "vs %s \xc2\xb7 box it"), (std::string(speciesName(698, g_lang)) + " Lv 25").c_str()), 667};
   Event cap{EventKind::OverCap, Tone::Warn, fmt(tr("%s Lv %d \xc3\xbc" "ber dem Cap", "%s Lv %d is over the cap"), "Quaxi", 33),
             fmt(tr("Level-Cap %d (%s)%s", "Level cap %d (%s)%s"), 32, "Korrina", ""), 657};

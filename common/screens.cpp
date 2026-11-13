@@ -362,7 +362,7 @@ void Onboarding::draw(Canvas &top, Canvas &bottom, const RunStore &store) {
       Event e{EventKind::FirstEncounter, Tone::Ok, fmt(tr("Erste Begegnung: %s", "First encounter: %s"), (std::string(speciesName(278, g_lang)) + " Lv 13").c_str()),
               tr("Route 8 \xc2\xb7 das ist dein Fang", "Route 8 \xc2\xb7 this is your catch"), 278};
       drawToast(top, 32, 68, 290, e, 1.f);
-      Event d{EventKind::Death, Tone::Danger, fmt(tr("%s ist gefallen", "%s has fainted"), "Leo"), tr("gegen Tyrunt Lv 25 \xc2\xb7 in die Box", "vs Tyrunt Lv 25 \xc2\xb7 box it"), 667};
+      Event d{EventKind::Death, Tone::Danger, fmt(tr("%s ist gefallen", "%s has fallen"), "Leo"), tr("gegen Tyrunt Lv 25 \xc2\xb7 in die Box", "vs Tyrunt Lv 25 \xc2\xb7 box it"), 667};
       drawToast(top, 78, 172, 290, d, 1.f);
       break;
     }
@@ -402,10 +402,10 @@ void Onboarding::draw(Canvas &top, Canvas &bottom, const RunStore &store) {
     case 3: {
       title = tr("Die Nuzlocke-Regeln", "The Nuzlocke rules");
       body = tr("Pro Gebiet z\xc3\xa4hlt nur die erste Begegnung. Wer f\xc3\xa4llt, ist tot und kommt in die Box. Level-Caps und Dupes-Klausel w\xc3\xa4hlst du beim Anlegen \xe2\x80\x93 souldew z\xc3\xa4hlt mit.",
-                "Only the first encounter per area counts. Whoever faints is dead and goes into the box. Level caps and the dupes clause are chosen when you create the run \xe2\x80\x93 souldew keeps count.");
+                "Only the first encounter per area counts. Whoever falls is dead and goes into the box. Level caps and the dupes clause are chosen when you create the run \xe2\x80\x93 souldew keeps count.");
       int w = 90, gap = 6, x = 200 - (4 * w + 3 * gap) / 2;
       ruleTile(top, x, 82, w, "pin", th::tri, tr("1 pro Gebiet", "1 per area"), tr("die erste z\xc3\xa4hlt", "the first counts"));
-      ruleTile(top, x + (w + gap), 82, w, "cross", th::cir, tr("Gefallen", "Fainted"), tr("= tot", "= dead"));
+      ruleTile(top, x + (w + gap), 82, w, "cross", th::cir, tr("Gefallen", "Fallen"), tr("= tot", "= dead"));
       ruleTile(top, x + 2 * (w + gap), 82, w, "star", th::warn, "Level-Caps", tr("Ass des Leiters", "the leader's ace"));
       ruleTile(top, x + 3 * (w + gap), 82, w, "ball", th::p1, tr("Dupes", "Dupes"), tr("schon gefangen", "already caught"));
       top.text(font_small, 0, 180, tr("Shiny-Klausel, Items, Set-Modus: Ehrensache.", "Shiny clause, items, set mode: the honour system."), th::ink3, 400, ALIGN_CENTER);
@@ -709,14 +709,14 @@ static const RuleRow RULES[] = {
      "A species (or evolution line) you already have doesn't count as the encounter \xe2\x80\x93 the next one does."},
     {"Level-Caps", "Level caps", "Kein Pok\xc3\xa9mon \xc3\xbc" "ber dem Ass des n\xc3\xa4" "chsten Arenaleiters. Warnen: Hinweis. Streng: rote Warnung, nicht einsetzen.",
      "No Pok\xc3\xa9mon above the next leader's ace. Warn: a hint. Strict: a red warning, don't use it."},
-    {"Blackout beendet Lauf", "Whiteout ends the run", "F\xc3\xa4llt das ganze Team, ist der Lauf vorbei.", "If the whole team faints, the run is over."},
+    {"Blackout beendet Lauf", "Whiteout ends the run", "F\xc3\xa4llt das ganze Team, ist der Lauf vorbei.", "If the whole team goes down, the run is over."},
     {"Geschenke z\xc3\xa4hlen", "Gifts count", "Geschenkte und statische Pok\xc3\xa9mon sind die Begegnung ihres Gebiets.",
      "Gifted and static Pok\xc3\xa9mon are the encounter of their area."},
     {"Deathless", "Deathless", "Der erste Tod beendet den Lauf.", "The first death ends the run."},
     {"Keine Items im Kampf", "No items in battle", "Hardcore: Heiltr\xc3\xa4nke nur au\xc3\x9f" "erhalb von K\xc3\xa4mpfen (Ehrensache).",
      "Hardcore: healing items only outside battles (honour system)."},
     {"Set-Modus", "Set mode", "Hardcore: kein Wechsel, wenn der Gegner ein Pok\xc3\xa9mon besiegt hat (Ehrensache).",
-     "Hardcore: no switching after the opponent's Pok\xc3\xa9mon faints (honour system)."},
+     "Hardcore: no switching after you knock out an opponent's Pok\xc3\xa9mon (honour system)."},
 };
 constexpr int RULE_COUNT = 7;
 
@@ -830,7 +830,7 @@ void NewRunWizard::draw(Canvas &top, Canvas &bottom, const std::vector<Installed
     top.text(font_head, card.x + 16, card.y + 22, f == 0 ? tr("Klassisch oder Hardcore", "Classic or Hardcore") : tr(RULES[f - 1].de, RULES[f - 1].en), th::crsInk, 340);
     top.textWrapped(font_small, card.x + 16, card.y + 44, 340, help, th::ink2, 2, 3);
     drawIcon(top, "info", 16, 186, th::ink4);
-    top.text(font_small, 26, 180, tr("Immer an: nur die erste Begegnung pro Gebiet, gefallen = tot.", "Always on: only the first encounter per area, fainted = dead."), th::ink3, 362);
+    top.text(font_small, 26, 180, tr("Immer an: nur die erste Begegnung pro Gebiet, gefallen = tot.", "Always on: only the first encounter per area, fallen = dead."), th::ink3, 362);
     // presets
     std::string pn = rules.presetName();
     Rect pc{10, 8, 148, 30}, ph{162, 8, 148, 30};

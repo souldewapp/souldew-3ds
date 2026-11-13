@@ -213,8 +213,8 @@ void Engine::deaths(const LiveFrame &f, long long now, std::vector<Event> &ev) {
     }
     dirty_ = true;
     std::string name = m ? monName(*m) : r.nickname;
-    ev.push_back({EventKind::Death, Tone::Danger, fmt(tr("%s ist gefallen", "%s has fainted"), name.c_str()),
-                  cause.empty() ? std::string(tr("Nuzlocke: f\xc3\xa4llt = tot", "Nuzlocke: fainted = dead"))
+    ev.push_back({EventKind::Death, Tone::Danger, fmt(tr("%s ist gefallen", "%s has fallen"), name.c_str()),
+                  cause.empty() ? std::string(tr("Nuzlocke: f\xc3\xa4llt = tot", "Nuzlocke: fallen = dead"))
                                 : fmt(tr("gegen %s \xc2\xb7 in die Box", "vs %s \xc2\xb7 box it"), cause.c_str()),
                   r.species});
     if (run_.rules.deathless && run_.status == "active") {
@@ -245,7 +245,7 @@ void Engine::deaths(const LiveFrame &f, long long now, std::vector<Event> &ev) {
       run_.end("lost", now);
       run_.addLog(now, "run", tr("Blackout: der Lauf ist vorbei", "Whiteout: the run is over"));
       ev.push_back({EventKind::Whiteout, Tone::Danger, tr("Blackout \xe2\x80\x93 Lauf verloren", "Whiteout \xe2\x80\x93 run lost"),
-                    tr("Das ganze Team ist gefallen", "The whole team fainted")});
+                    tr("Das ganze Team ist gefallen", "The whole team is down")});
     }
   } else if (!allDown) whiteout_ = false;
 }

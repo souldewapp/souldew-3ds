@@ -878,7 +878,7 @@ void RunView::listGrave(Canvas &c, const ViewCtx &ctx, Rect a) {
     hx += c.text(font_body_b, hx, y + 3, monLabel(m), th::ink, 110) + 6;
     c.text(font_small, hx, y + 4, fmt("%s \xc2\xb7 Lv %d", speciesName(m.species, g_lang), m.level), th::ink3, r.x + r.w - hx - 8);
     drawIcon(c, "cross", r.x + 46, y + 23, th::cir);
-    c.text(font_small, r.x + 58, y + 17, m.cause.empty() ? tr("gefallen", "fainted") : m.cause, th::badInk, r.w - 66);
+    c.text(font_small, r.x + 58, y + 17, m.cause.empty() ? tr("gefallen", "fallen") : m.cause, th::badInk, r.w - 66);
     std::string caught = fmt(tr("Gefangen: %s", "Caught: %s"), areaLabel(ctx.game ? ctx.game->gen : 6, m.loc, m.area, g_lang).c_str());
     c.text(font_small, r.x + 46, y + 29, caught, th::ink3, r.w - 54);
     hits_.push_back({{r.x, std::max(y, a.y), r.w, r.h}, H_ROW, (int)k});
@@ -935,7 +935,7 @@ void RunView::listRules(Canvas &c, const ViewCtx &ctx, Rect a) {
     bool on;
   } rows[] = {
       {tr("Erste Begegnung pro Gebiet", "First encounter per area"), tr("immer", "always"), true},
-      {tr("Gefallen = tot", "Fainted = dead"), tr("immer", "always"), true},
+      {tr("Gefallen = tot", "Fallen = dead"), tr("immer", "always"), true},
       {tr("Dupes-Klausel", "Dupes clause"), ruleValue(run.rules.dupes), run.rules.dupes != "off"},
       {tr("Level-Caps", "Level caps"), ruleValue(run.rules.levelCaps), run.rules.levelCaps != "off"},
       {tr("Blackout beendet Lauf", "Whiteout ends the run"), ruleValue(run.rules.blackout), run.rules.blackout == "party"},
