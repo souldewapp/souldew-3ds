@@ -679,6 +679,21 @@ static void testScreens() {
   CHECK(ts.handle(in, st) == TrophyAction::Changed && ts.filter == 1);
   in.pressed = K_B;
   CHECK(ts.handle(in, st) == TrophyAction::Back);
+  // medals (the desktop app's fix 002c367): the body is mirror-symmetric about its centre column, and the emblem's ink
+  // centre sits on the body's centre or at most half a cell up / left of it – for every kind and tier
+  for (int kind = 0; kind < 5; kind++)
+    for (int tier = -1; tier < 5; tier++) {
+      MedalCells m = medalCells(kind, tier);
+      bool sym = true;
+      for (int y = 0; y < MedalCells::H; y++)
+        for (int d = 1; d <= MedalCells::CX; d++)
+          if (MedalCells::CX + d < MedalCells::W)
+            sym = sym && m.body[y * MedalCells::W + MedalCells::CX - d] == m.body[y * MedalCells::W + MedalCells::CX + d];
+      CHECK(sym);
+      float cx = (m.ink[0] + m.ink[2]) / 2.f, cy = (m.ink[1] + m.ink[3]) / 2.f;
+      CHECK(m.ink[2] >= m.ink[0] && cx <= MedalCells::CX && cx >= MedalCells::CX - 0.5f && cy <= MedalCells::CY && cy >= MedalCells::CY - 0.5f);
+      CHECK(m.body[MedalCells::CY * MedalCells::W + MedalCells::CX]);
+    }
   // a screen change blends the two pictures
   Canvas a(8, 2), b(8, 2), o(8, 2);
   a.clear(Color(0, 0, 0));

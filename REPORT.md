@@ -17,6 +17,11 @@ game yet.
 | **Moments** the engine now records: badge times, evolutions (with a card), exactly 1 HP, badges earned underlevelled, trainer battles started over the cap, a monotype team of six, each death's killer (species, level, trainer) | `common/nuzlocke.cpp`, `RunStats` | `ingame_evolved` |
 | Faster drawing for the ARM11 (no divide instruction): blending and glows without divisions per pixel, backdrops cached in the launcher | `common/gfx.cpp`, `drawBackdrop` | – |
 
+Medals follow the desktop app's centring fix (its commit 002c367): a 25×32 grid with the body centred on a whole cell
+(12, 20), so it has a middle column; ribbon tails at 4…10 / 14…20; emblems trimmed to their ink and placed with
+`CX − ceil((w−1)/2)` – a test checks every kind and tier (mirror-symmetric body, ink centre at most half a cell up/left).
+The achievement coins (13×13, centre 6, 6) place their emblems the same way.
+
 Achievements left out (not observable on the 3DS or not for a solo run): SoulLink, randomizer, cheats, nicknames,
 "seen" species, Gen 1–5 dexes. Adapted: badges in Alola = grand trials (two per trial for "Eight for Eight"), "Kalos
 and Alola" instead of "all generations".
@@ -69,7 +74,7 @@ Decisions worth knowing:
 | **Plugin end to end in Azahar** (Azahar's 3GX plugin loader, CTRPF, memory reads, engine, overlays on the game's screen, corner tab, souldew screens over the paused game, run file written) | `tools/emu_test.py plugin`: the mock game plays town → Route 2 → wild Fletchling (first encounter) → catch → forest → Fletchling again (dupe) → Froakie over cap 12 → trainer battle (cap badge) → Fletchling goes down (death) → badge 1 (cap 25) → achievements unlocked, their cards shown ("Blech am Revers" in `emu_plugin_trophy`). The plugin's run file afterwards: starter + Route 2 caught + forest dupe, Fletchling dead ("Purmel Lv 6 (Trainer)", killer 664), 1 badge with its time, 1 cap break, `profile.trophies` firstRun / firstCatch / firstBadge → `docs/screenshots/emu_plugin_*.png`, `docs/emu_plugin_runs.json` |
 | All screens in German and English | `docs/screenshots/launcher_*.png`, `ingame_*.png` (`*_en.png`): rendered on the computer by the console's drawing code; overlays composited through the plugin's blitter onto a placeholder picture |
 
-Unit tests: 255 checks, all passing (`./build.sh host`) – new: the engine's moments, achievements (unlock, once, kept in the profile, medals, run-file round trip, old files), the launcher screens' keys and taps, the transition.
+Unit tests: 345 checks, all passing (`./build.sh host`) – new: the engine's moments, achievements (unlock, once, kept in the profile, medals, run-file round trip, old files), the launcher screens' keys and taps, the transition.
 
 ## Needs a real console (and the games)
 

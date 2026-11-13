@@ -86,7 +86,16 @@ void drawProgress(Canvas &c, int x, int y, int w, int h, int n, int total, Color
 void drawPips(Canvas &c, int x, int y, int n, int total, Color on);  // badges: small diamonds
 void drawPageDots(Canvas &c, int cx, int y, int n, int active);
 // achievements: the desktop app's computed pixel medals (kind 0..3 category, 4 champion; tier -1 locked … 4 master)
-void drawMedal(Canvas &c, int x, int y, int kind, int tier, int scale = 2);  // 24×31 cells
+void drawMedal(Canvas &c, int x, int y, int kind, int tier, int scale = 2);  // 25×32 cells
+// a medal's cells: colours (0 = empty), the body's shape, the emblem's ink box (x0, y0, x1, y1) – the body is
+// centred on a whole cell (CX, CY) of an odd-sized grid, so it has a middle column and the emblem can sit in it
+struct MedalCells {
+  static constexpr int W = 25, H = 32, CX = 12, CY = 20;
+  std::vector<uint32_t> px;
+  std::vector<bool> body;
+  int ink[4] = {0, 0, -1, -1};
+};
+MedalCells medalCells(int kind, int tier);
 // an achievement's coin (13×13 cells): metal by rarity, the category's emblem; locked: dark with a lock / "?"
 void drawCoin(Canvas &c, int x, int y, int scale, int cat, int rarity, bool locked, bool hidden);
 // a dark translucent band behind the action buttons at the bottom of a screen

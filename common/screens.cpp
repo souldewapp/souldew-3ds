@@ -1037,10 +1037,10 @@ void TrophyScreen::draw(Canvas &top, Canvas &bottom, const RunStore &store) {
     int x = mx + i * 74;
     top.roundRect(x, 42, 66, 96, 10, Color(255, 255, 255, 8));
     if (m.tier >= 0) top.glow(x + 33, 82, 34, 34, rgb(0xfff1ad, 22));
-    drawMedal(top, x + 9, 46, m.kind, m.tier, 2);
-    top.text(font_label, x, 112, m.tier >= 0 ? tierLabel(m.tier) : "\xe2\x80\x94", m.tier >= 0 ? th::warnInk : th::ink4, 66, ALIGN_CENTER);
+    drawMedal(top, x + 8, 45, m.kind, m.tier, 2);
+    top.text(font_label, x, 113, m.tier >= 0 ? tierLabel(m.tier) : "\xe2\x80\x94", m.tier >= 0 ? th::warnInk : th::ink4, 66, ALIGN_CENTER);
     std::string v = m.next ? fmt("%d/%d", m.value, m.next) : std::string(tr("MAX", "MAX"));
-    top.text(font_label, x, 123, v, th::ink3, 66, ALIGN_CENTER);
+    top.text(font_label, x, 124, v, th::ink3, 66, ALIGN_CENTER);
   }
   if (!shown_.empty()) {
     const TrophyState &s = states[shown_[focus]];

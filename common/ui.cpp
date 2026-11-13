@@ -522,14 +522,31 @@ static bool medalInside(int kind, float x, float y) {
   }
 }
 
-// a body (shape) with outline, bevel lit from the top left, sheen and an engraved emblem, into `grid` (0 = empty)
-static void metalBody(uint32_t *grid, int W, int H, float CX, float CY, bool (*inside)(int, float, float), int kind, const uint32_t *pal,
-                      bool locked, const char *const *em, int ew, int eh) {
-  auto in = [&](int x, int y) { return x >= 0 && y >= 0 && x < W && y < H && inside(kind, x - CX, y - CY); };
+// the part of an emblem that has ink (some – the crown – don't fill their 9×9 box)
+struct Ink {
+  int x0 = 0, y0 = 0, w = 0, h = 0;
+};
+static Ink emblemInk(const char *const *em, int ew, int eh) {
+  int x0 = ew, x1 = -1, y0 = eh, y1 = -1;
+  for (int j = 0; j < eh; j++)
+    for (int i = 0; i < ew; i++)
+      if (em[j][i] == '#') x0 = std::min(x0, i), x1 = std::max(x1, i), y0 = std::min(y0, j), y1 = std::max(y1, j);
+  Ink k;
+  if (x1 < 0) return k;
+  k.x0 = x0, k.y0 = y0, k.w = x1 - x0 + 1, k.h = y1 - y0 + 1;
+  return k;
+}
+
+// a body (shape) with outline, bevel lit from the top left, sheen and an engraved emblem, into `grid` (0 = empty).
+// The centre (CX, CY) is a whole cell of an odd-sized body, so it has a middle column and row; the emblem's ink goes
+// onto it (an even extent leans up/left – the light lip below-right evens it out). `k`: the bevel's scale (1 = medal).
+static void metalBody(uint32_t *grid, int W, int H, int CX, int CY, bool (*inside)(int, float, float), int kind, const uint32_t *pal,
+                      bool locked, const char *const *em, int ew, int eh, float k, int *inkBox = nullptr) {
+  auto in = [&](int x, int y) { return x >= 0 && y >= 0 && x < W && y < H && inside(kind, (float)(x - CX), (float)(y - CY)); };
   for (int y = 0; y < H; y++)
     for (int x = 0; x < W; x++) {
       if (!in(x, y)) continue;
-      float dx = x - CX, dy = y - CY;
+      float dx = (float)(x - CX), dy = (float)(y - CY);
       uint32_t col;
       if (!in(x - 1, y) || !in(x + 1, y) || !in(x, y - 1) || !in(x, y + 1)) col = pal[0];
       else {
@@ -538,24 +555,27 @@ static void metalBody(uint32_t *grid, int W, int H, float CX, float CY, bool (*i
         if (rim) col = lit ? pal[4] : pal[1];
         else {
           float d = dx + dy;
-          col = d < -9 * (W / 24.f) ? pal[3] : d < 6 * (W / 24.f) ? pal[2] : pal[1];
-          if (!locked && std::fabs(dx - dy + 3 * (W / 24.f)) <= 0.6f && d < -5 * (W / 24.f)) col = pal[4];
+          col = d < -9 * k ? pal[3] : d < 6 * k ? pal[2] : pal[1];
+          if (!locked && std::fabs(dx - dy + 3 * k) <= 0.6f && d < -5 * k) col = pal[4];
         }
       }
       grid[y * W + x] = col | 0xff000000u;
     }
-  int ox = (int)std::lround(CX - ew / 2.f + 0.5f), oy = (int)std::lround(CY - eh / 2.f + 0.5f);
+  Ink ink = emblemInk(em, ew, eh);
+  if (!ink.w) return;
+  int ox = CX - ink.w / 2, oy = CY - ink.h / 2;  // = CX - ceil((w - 1) / 2)
+  if (inkBox) inkBox[0] = ox, inkBox[1] = oy, inkBox[2] = ox + ink.w - 1, inkBox[3] = oy + ink.h - 1;
+  auto at = [&](int i, int j) { return i >= 0 && j >= 0 && i < ink.w && j < ink.h && em[ink.y0 + j][ink.x0 + i] == '#'; };
   uint32_t groove = (locked ? pal[1] : pal[0]) | 0xff000000u, lip = (locked ? pal[3] : pal[4]) | 0xff000000u;
-  for (int j = 0; j < eh; j++)
-    for (int i = 0; i < ew; i++) {
-      if (em[j][i] != '#') continue;
+  for (int j = 0; j < ink.h; j++)
+    for (int i = 0; i < ink.w; i++) {
+      if (!at(i, j)) continue;
       int x = ox + i + 1, y = oy + j + 1;
-      bool nextIsGroove = j + 1 < eh && i + 1 < ew && em[j + 1][i + 1] == '#';
-      if (x < W && y < H && grid[y * W + x] && !nextIsGroove) grid[y * W + x] = lip;
+      if (x < W && y < H && grid[y * W + x] && !at(i + 1, j + 1)) grid[y * W + x] = lip;
     }
-  for (int j = 0; j < eh; j++)
-    for (int i = 0; i < ew; i++)
-      if (em[j][i] == '#' && grid[(oy + j) * W + ox + i]) grid[(oy + j) * W + ox + i] = groove;
+  for (int j = 0; j < ink.h; j++)
+    for (int i = 0; i < ink.w; i++)
+      if (at(i, j) && grid[(oy + j) * W + ox + i]) grid[(oy + j) * W + ox + i] = groove;
 }
 
 static void blitGrid(Canvas &c, int x, int y, const uint32_t *grid, int W, int H, int s) {
@@ -566,9 +586,13 @@ static void blitGrid(Canvas &c, int x, int y, const uint32_t *grid, int W, int H
     }
 }
 
-void drawMedal(Canvas &c, int x, int y, int kind, int tier, int scale) {
-  const int W = 24, H = 31;
-  uint32_t grid[W * H] = {};
+static const int MEDAL_SHAPE[5] = {0, 1, 2, 0, 4};  // journey circle, collection hexagon, skill star, fun circle, champion burst
+
+MedalCells medalCells(int kind, int tier) {
+  MedalCells m;
+  m.px.assign(MedalCells::W * MedalCells::H, 0);
+  uint32_t *grid = m.px.data();
+  const int W = MedalCells::W;
   bool locked = tier < 0;
   const uint32_t *pal = METALS[locked ? 5 : std::min(tier, 4)];
   kind = std::max(0, std::min(4, kind));
@@ -576,7 +600,7 @@ void drawMedal(Canvas &c, int x, int y, int kind, int tier, int scale) {
   uint32_t rib0 = locked ? 0x25242a : RIBBONS[kind][0], rib1 = locked ? 0x1c1b20 : RIBBONS[kind][1];
   for (int yy = 0; yy < 13; yy++) {
     int lean = (int)std::lround((12 - yy) / 4.0);
-    int tails[2][2] = {{4 - lean, 10 - lean}, {13 + lean, 19 + lean}};
+    int tails[2][2] = {{4 - lean, 10 - lean}, {14 + lean, 20 + lean}};
     for (auto &t : tails) {
       float mid = (t[0] + t[1]) / 2.f;
       for (int xx = t[0]; xx <= t[1]; xx++) {
@@ -586,9 +610,17 @@ void drawMedal(Canvas &c, int x, int y, int kind, int tier, int scale) {
       }
     }
   }
-  static const int SHAPE[5] = {0, 1, 2, 0, 4};  // journey circle, collection hexagon, skill star, fun circle, champion burst
-  metalBody(grid, W, H, 11.5f, 19.5f, medalInside, SHAPE[kind], pal, locked, EMBLEMS[kind], 9, kind == 4 ? 7 : 9);
-  blitGrid(c, x, y, grid, W, H, scale);
+  int box[4] = {0, 0, -1, -1};
+  metalBody(grid, W, MedalCells::H, MedalCells::CX, MedalCells::CY, medalInside, MEDAL_SHAPE[kind], pal, locked, EMBLEMS[kind], 9, 9, 1.f, box);
+  for (int i = 0; i < 4; i++) m.ink[i] = box[i];
+  for (int y = 0; y < MedalCells::H; y++)
+    for (int x = 0; x < W; x++) m.body.push_back(medalInside(MEDAL_SHAPE[kind], (float)(x - MedalCells::CX), (float)(y - MedalCells::CY)));
+  return m;
+}
+
+void drawMedal(Canvas &c, int x, int y, int kind, int tier, int scale) {
+  MedalCells m = medalCells(kind, tier);
+  blitGrid(c, x, y, m.px.data(), MedalCells::W, MedalCells::H, scale);
 }
 
 static bool coinInside(int, float x, float y) { return x * x + y * y <= 6.4f * 6.4f; }
@@ -598,7 +630,7 @@ void drawCoin(Canvas &c, int x, int y, int scale, int cat, int rarity, bool lock
   uint32_t grid[W * H] = {};
   const uint32_t *pal = METALS[locked ? 5 : std::max(0, std::min(4, rarity))];
   const char *const *em = COIN7[locked ? (hidden ? 5 : 4) : std::max(0, std::min(3, cat))];
-  metalBody(grid, W, H, 6.f, 6.f, coinInside, 0, pal, locked, em, 7, 7);
+  metalBody(grid, W, H, 6, 6, coinInside, 0, pal, locked, em, 7, 7, 13 / 24.f);
   blitGrid(c, x, y, grid, W, H, scale);
 }
 
