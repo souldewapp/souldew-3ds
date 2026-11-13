@@ -1,8 +1,25 @@
 # souldew-3ds – status report
 
-State of 12 Nov 2026. Everything below was built with `./build.sh` (Docker toolchain) and tested on a Mac
+State of 13 Nov 2026 (redesign, title menu, introduction, achievements, settings – see the first section). Everything below was built with `./build.sh` (Docker toolchain) and tested on a Mac
 (Apple Silicon) with Azahar 2126.2 – **no Pokémon game was available**, so nothing has run inside a real Pokémon
 game yet.
+
+## 13 Nov 2026: prettier and more complete
+
+| What | Where | Screenshots |
+| --- | --- | --- |
+| **Look**: a backdrop with the website's blue/pink glows, surfaces with vertical gradients, a light top rim and soft shadows, segmented tabs (with open / dead counts), pixel icons (`drawIcon`), the logo as the favicon's pixel art (rings in P1 blue / P2 pink), buttons like the website's play button, key caps, switches, badge pips, dashed empty slots, the desktop app's "HP" label, type tiles in both types' colours (no sprites), cartridges in the two versions' colours (no logos), list rows with status discs and section labels, a bottom sheet with a grabber | `common/ui.cpp`, `common/gfx.cpp` (`roundRectVGradient`, `glow`, `shadow`, `dashedRoundRect`) | every `launcher_*`, `ingame_*`; before: `docs/screenshots/before/` |
+| **Title menu**: an LCD with the rings linking up (0.9 s), the pixel wordmark (`font_title`, a 46 px Pixelify subset), a line about what is focused; Continue (starts the active run's game), New run, Runs, Achievements, Settings, Help, Quit – D-pad, A and touch; screens slide + fade into each other (0.22 s) | `MainMenu`, `transition()`, `launcher/source/main.cpp` | `launcher_menu*`, `launcher_transition`, `emu_launcher_menu*` |
+| **Introduction** on first launch (`settings.onboarded`): language (DE/EN), what souldew does, opening it in game (SELECT / the corner tab), the Nuzlocke rules, ready – skippable; again under Help and Settings | `Onboarding` | `launcher_intro_1…5`, `emu_launcher_intro_*` |
+| **Achievements**: 63 of the desktop app's trophies (ids, rarities, de/en texts) for what the plugin can observe; medals per category + the champion's (the desktop app's computed pixel medals, cell by cell); coins by rarity; progress, unlock date, secret ones; stored in the run file's `profile` (kept when a run is deleted); the plugin shows a card when one unlocks, the launcher a banner | `common/trophies.cpp`, `TrophyScreen`, `drawMedal`, `drawCoin` | `launcher_trophies*`, `ingame_trophy`, `launcher_trophy_banner`, `emu_plugin_trophy`, `emu_launcher_trophies*` |
+| **Settings**: language, overlays, corner tab, the introduction, about – each with a preview on the top screen | `SettingsScreen` | `launcher_settings*`, `emu_launcher_settings*` |
+| **End a run** as won / lost (or reopen it) in the Rules tab – wins and losses count for achievements | `RunView` sheet 4 | `launcher_run_rules_end`, `launcher_run_end` |
+| **Moments** the engine now records: badge times, evolutions (with a card), exactly 1 HP, badges earned underlevelled, trainer battles started over the cap, a monotype team of six, each death's killer (species, level, trainer) | `common/nuzlocke.cpp`, `RunStats` | `ingame_evolved` |
+| Faster drawing for the ARM11 (no divide instruction): blending and glows without divisions per pixel, backdrops cached in the launcher | `common/gfx.cpp`, `drawBackdrop` | – |
+
+Achievements left out (not observable on the 3DS or not for a solo run): SoulLink, randomizer, cheats, nicknames,
+"seen" species, Gen 1–5 dexes. Adapted: badges in Alola = grand trials (two per trial for "Eight for Eight"), "Kalos
+and Alola" instead of "all generations".
 
 ## Architecture (as built)
 
@@ -48,11 +65,11 @@ Decisions worth knowing:
 | Nuzlocke engine: starter adoption, new area, first encounter, dupe (species/line), catch, gift rule, missed encounter, over-cap warnings (once per level, again at trainer battles), death from the battle copy, badge → new cap, whiteout ends the run, deathless | unit tests (scenario) **and the emulator run below** |
 | Run file round trip, unicode, desktop-style `levelCaps: true` | unit tests |
 | Framebuffer blitting in all 5 GSP formats, rotated layout, alpha | unit tests; in Azahar on RGB565 (top) and BGR8 (bottom) |
-| **Launcher in Azahar** (home, run tabs, rules, new-run wizard incl. rule toggles) | `tools/emu_test.py launcher` with the self-driving demo build → `docs/screenshots/emu_launcher_*.png` |
-| **Plugin end to end in Azahar** (Azahar's 3GX plugin loader, CTRPF, memory reads, engine, overlays on the game's screen, corner tab, souldew screens over the paused game, run file written) | `tools/emu_test.py plugin`: the mock game plays town → Route 2 → wild Fletchling (first encounter) → catch → forest → Fletchling again (dupe) → Froakie over cap 12 → trainer battle (cap badge) → Fletchling faints (death) → badge 1 (cap 25). The plugin's run file afterwards: starter + Route 2 caught + forest dupe, Fletchling dead ("Purmel Lv 6 (Trainer)"), 1 badge → `docs/screenshots/emu_plugin_*.png` |
+| **Launcher in Azahar** (introduction, title menu, runs, run tabs, achievements, settings, new-run wizard) | `tools/emu_test.py launcher` with the self-driving demo build (it presses its own buttons on a time schedule) → `docs/screenshots/emu_launcher_*.png`, 20 shots |
+| **Plugin end to end in Azahar** (Azahar's 3GX plugin loader, CTRPF, memory reads, engine, overlays on the game's screen, corner tab, souldew screens over the paused game, run file written) | `tools/emu_test.py plugin`: the mock game plays town → Route 2 → wild Fletchling (first encounter) → catch → forest → Fletchling again (dupe) → Froakie over cap 12 → trainer battle (cap badge) → Fletchling goes down (death) → badge 1 (cap 25) → achievements unlocked, their cards shown ("Blech am Revers" in `emu_plugin_trophy`). The plugin's run file afterwards: starter + Route 2 caught + forest dupe, Fletchling dead ("Purmel Lv 6 (Trainer)", killer 664), 1 badge with its time, 1 cap break, `profile.trophies` firstRun / firstCatch / firstBadge → `docs/screenshots/emu_plugin_*.png`, `docs/emu_plugin_runs.json` |
 | All screens in German and English | `docs/screenshots/launcher_*.png`, `ingame_*.png` (`*_en.png`): rendered on the computer by the console's drawing code; overlays composited through the plugin's blitter onto a placeholder picture |
 
-Unit tests: 147 checks, all passing (`./build.sh host`).
+Unit tests: 255 checks, all passing (`./build.sh host`) – new: the engine's moments, achievements (unlock, once, kept in the profile, medals, run-file round trip, old files), the launcher screens' keys and taps, the transition.
 
 ## Needs a real console (and the games)
 
@@ -74,6 +91,12 @@ Unit tests: 147 checks, all passing (`./build.sh host`).
 6. **Performance:** the mock game ran at ~10 fps in Azahar because it redraws itself on the CPU; the plugin's own
    per-frame work is one cached card blitted (≤ 300×60 px). Check on an Old 3DS that the game doesn't stutter.
 7. **3D slider on** (the plugin draws into both eyes' buffers – untested), sleep / HOME menu with souldew open.
+8. **The launcher's animations on real hardware**: the title animation, screen changes and banners redraw every frame
+   with the CPU (time-based, so a slow frame only skips steps). In Azahar they run smoothly; on an Old 3DS the first
+   draw of each backdrop and the medal case may take a few frames – check.
+9. **Achievements in real games**: the moments (badge times, 1 HP, evolutions, killers) come from the same memory reads
+   as before, but only the mock game has exercised them. The unlock date on the console is the 3DS clock (shown as
+   a date); runs written on a computer show no date.
 
 ## Known gaps
 
@@ -90,5 +113,9 @@ Unit tests: 147 checks, all passing (`./build.sh host`).
 - Gifts/statics are recognised by their met location; trades and hatched eggs never use up an area.
 - No rule editor after creating a run (except Gen 7 milestones and the overlay switch); no import/export with the
   desktop app yet (field names match, so it is a small step).
-- `settings.lang` (de/en) only in the run file – no switch in the UI yet.
+- Language is switched in the launcher (Settings, introduction); in game only the overlays can be switched.
+- "Won" is set by hand (Rules › End the run): souldew can't see the Hall of Fame. Shiny clause / items / set mode stay
+  honour-system rules.
+- The system keyboard for the run's name (Y / tap on the name field) wasn't exercised in the emulator demo.
+- The Pokémon tiles are type colours with short names, not sprites (sprites aren't redistributable).
 - Long card texts are cut with "…" (e.g. the dupe hint while the battle badge is shown).

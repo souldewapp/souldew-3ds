@@ -1,20 +1,33 @@
 {
  "souldew3ds": 1,
- "active": "reea0cc07",
+ "active": "reea20719",
  "settings": {
   "lang": "de",
   "overlays": true,
-  "tab": true
+  "tab": true,
+  "onboarded": false
+ },
+ "profile": {
+  "trophies": {
+   "firstRun": 4003596057,
+   "firstCatch": 4003596072,
+   "firstBadge": 4003596102
+  },
+  "dex": [
+   656,
+   661
+  ],
+  "runsCreated": 1
  },
  "runs": [
   {
-   "id": "reea0cc07",
+   "id": "reea20719",
    "name": "Nuzlocke X",
    "game": "xy",
    "mode": "nuzlocke",
    "status": "active",
-   "created": 4003515399,
-   "updated": 4003515450,
+   "created": 4003596057,
+   "updated": 4003596109,
    "rules": {
     "dupes": "line",
     "levelCaps": "warn",
@@ -31,6 +44,17 @@
    "milestone": 0,
    "playMinutes": 0,
    "lastArea": "Santalune City",
+   "stats": {
+    "badgeAt": [
+     4003596102
+    ],
+    "evolutions": 0,
+    "oneHp": 0,
+    "underdog": 0,
+    "capBreaks": 1,
+    "monotypeAt": 0,
+    "endedAt": 0
+   },
    "encounters": [
     {
      "area": "Starter",
@@ -40,7 +64,7 @@
      "status": "caught",
      "mon": "1234abcd-12345-54321",
      "starter": true,
-     "ts": 4003515400
+     "ts": 4003596058
     },
     {
      "area": "Route 2",
@@ -49,7 +73,7 @@
      "level": 3,
      "status": "caught",
      "mon": "0badf00d-12345-54321",
-     "ts": 4003515408
+     "ts": 4003596066
     },
     {
      "area": "Santalune Forest",
@@ -57,7 +81,7 @@
      "species": 661,
      "level": 4,
      "status": "dupe",
-     "ts": 4003515424
+     "ts": 4003596082
     }
    ],
    "mons": [
@@ -92,69 +116,72 @@
      "dead": true,
      "cause": "Purmel Lv 6 (Trainer)",
      "deathArea": "Santalune Forest",
-     "deathTs": 4003515438,
+     "deathTs": 4003596096,
+     "killer": 664,
+     "killerLevel": 6,
+     "killerTrainer": true,
      "inParty": true,
      "partySlot": 1
     }
    ],
    "log": [
     {
-     "ts": 4003515400,
+     "ts": 4003596058,
      "kind": "caught",
      "text": "Start: Froxy"
     },
     {
-     "ts": 4003515400,
+     "ts": 4003596058,
      "kind": "area",
      "text": "Neues Gebiet: Aquarellia"
     },
     {
-     "ts": 4003515402,
+     "ts": 4003596060,
      "kind": "area",
      "text": "Neues Gebiet: Route 2"
     },
     {
-     "ts": 4003515408,
+     "ts": 4003596066,
      "kind": "encounter",
      "text": "Begegnung: Dartiri Lv 3 (Route 2)"
     },
     {
-     "ts": 4003515414,
+     "ts": 4003596072,
      "kind": "caught",
      "text": "Gefangen: Dartiri (Route 2)"
     },
     {
-     "ts": 4003515418,
+     "ts": 4003596076,
      "kind": "area",
      "text": "Neues Gebiet: Nouvaria-Wald"
     },
     {
-     "ts": 4003515424,
+     "ts": 4003596082,
      "kind": "dupe",
      "text": "Dupe: Dartiri Lv 4 (Nouvaria-Wald)"
     },
     {
-     "ts": 4003515430,
+     "ts": 4003596088,
      "kind": "cap",
      "text": "Froxy Lv 13 > 12"
     },
     {
-     "ts": 4003515434,
+     "ts": 4003596092,
      "kind": "cap",
      "text": "Froxy Lv 13 > 12"
     },
     {
-     "ts": 4003515438,
+     "ts": 4003596096,
      "kind": "death",
      "text": "Tot: Dartiri"
     },
     {
-     "ts": 4003515444,
+     "ts": 4003596102,
      "kind": "badge",
      "text": "Orden 1"
     },
     {
-     "ts": 4003515450,
+     "ts": 4003596109,
      "kind": "area",
      "text": "Neues Gebiet: Nouvaria City"
     }

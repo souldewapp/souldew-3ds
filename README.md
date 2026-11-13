@@ -2,22 +2,28 @@
 
 souldew's Nuzlocke tracker on the console itself, for 3DS consoles with custom firmware (Luma3DS):
 
-- **Launcher** (`souldew.3dsx`, Homebrew Launcher): create and continue Nuzlocke runs (game, rules: first encounter per
-  area, dupes clause, level caps, whiteout, gifts, deathless, hardcore), see team, routes, graveyard and rules – then
-  start the installed game or the inserted cartridge.
+- **Launcher** (`souldew.3dsx`, Homebrew Launcher): a title menu (Continue, New run, Runs, Achievements, Settings,
+  Help), a short introduction on first launch (language, what souldew does, how to open it in game, the Nuzlocke
+  basics), create and continue Nuzlocke runs (game, rules: first encounter per area, dupes clause, level caps,
+  whiteout, gifts, deathless, hardcore), see team, routes, graveyard and rules, end a run as won or lost – then start
+  the installed game or the inserted cartridge.
+- **Achievements**: the desktop app's trophies and medals, cut down to what the 3DS games and the plugin can observe
+  (63: journey, collection, skill, just for fun – some secret). The medal case and every achievement's progress are in
+  the launcher; in game a small card appears when one unlocks.
 - **In-game plugin** (`souldew.3gx`, Luma3DS plugin loader, CTRPluginFramework): reads the game's memory while you play.
   The game looks normal; souldew only speaks up in the important moments with a small card on the top screen:
-  new area (the first encounter counts), first encounter, dupe, catch, a Pokémon fainted = dead, over the level cap,
-  badge + new cap, whiteout. **SELECT** or **holding the small tab in the bottom screen's corner** pauses the game and
+  new area (the first encounter counts), first encounter, dupe, catch, a Pokémon down = dead, over the level cap,
+  badge + new cap, evolution, achievement, whiteout. **SELECT** or **holding the small tab in the bottom screen's corner** pauses the game and
   opens souldew's screens (team, routes, graveyard, rules) on both screens; "Back to the game" resumes it.
 
 Games: Pokémon X / Y, Omega Ruby / Alpha Sapphire, Sun / Moon, Ultra Sun / Ultra Moon (all regions share the title
 IDs). The memory addresses are the souldew desktop app's (party, battles, zone, badges). Virtual Console titles (GB/GBA)
 are not supported (see REPORT.md).
 
-The launcher and the plugin share the run in `sdmc:/souldew/runs.json`.
+The launcher and the plugin share the runs, the settings and the achievements in `sdmc:/souldew/runs.json`.
 
-![Launcher](docs/screenshots/launcher_home.png) ![In game](docs/screenshots/ingame_first_encounter.png)
+![Title menu](docs/screenshots/launcher_menu.png) ![A run](docs/screenshots/launcher_run_team.png)
+![Achievements](docs/screenshots/launcher_trophies.png) ![In game](docs/screenshots/ingame_first_encounter.png)
 
 ## Install (SD card)
 
@@ -45,7 +51,8 @@ Don't use both ways at once for the same game.
   souldew; **B**, **SELECT** or the big button returns to the game. **L / R** switch tabs, the D-pad moves, **A** opens
   a row: mark a Pokémon dead by hand, or confirm an encounter whose catch went to the box (party full).
 - Gen 7 has no badges: step the grand trials in the *Rules* tab (**− / +**) – the level cap follows.
-- Settings live in the run file (`settings.lang`: `"de"` / `"en"`, `overlays`, `tab`). The *Rules* tab toggles overlays.
+- *Settings* in the launcher: language (Deutsch / English), overlays in game, the corner tab, the introduction again.
+  In game the *Rules* tab toggles the overlays. *Rules › End the run* marks a run as won or lost (achievements).
 
 ## Build
 
@@ -60,7 +67,8 @@ The toolchain image (`docker/Dockerfile`): devkitARM/libctru (pinned by digest),
 - `launcher/souldew.3dsx`, `plugin/souldew.3gx` – the release files
 - `launcher/souldew-demo.3dsx` – the launcher pressing its own buttons (emulator screenshots)
 - `plugin/souldew-test.3gx` + `mockgame/souldew-mock.cxi` – the plugin's end-to-end test without any game (below)
-- `docs/screenshots/*.png` – every screen, rendered on the computer by the same drawing code the console runs
+- `docs/screenshots/*.png` – every screen in German and English (`*_en.png`), rendered on the computer by the same
+  drawing code the console runs (`docs/screenshots/before/`: a few screens before the redesign of 13 Nov 2026)
 
 Generated sources are committed; regenerate them with `tools/gen_fonts.py` (fonts, needs Pillow),
 `tools/gen_data.mjs <souldew>/native/shared/data` (names, types, locations) and `tools/gen_mock_romfs.py`.
@@ -69,14 +77,16 @@ Generated sources are committed; regenerate them with `tools/gen_fonts.py` (font
 
 - `./build.sh host` runs the unit tests (`host/tests.cpp`): PK6/PK7 decryption against fixtures written by the desktop
   app's own JavaScript (`tools/js_fixtures.mjs`), the party/battle readers, RomFS/GARC/LZ11 zone tables (cross-checked
-  with the desktop app's `ctrzones.mjs`: `tools/js_check_zones.mjs`), the run file, the rules engine, every framebuffer
-  format, the screens' touch targets.
+  with the desktop app's `ctrzones.mjs`: `tools/js_check_zones.mjs`), the run file, the rules engine and the moments it
+  records, the achievements and medals, every framebuffer format, the screens' keys and touch targets.
 - `python3 tools/emu_test.py plugin <Azahar.app>` runs the **mock game** in Azahar (2126.2) with the test plugin: a
   homebrew test title (title ID `000400000F5D0000`) that lays out its memory like Pokémon X 1.0 and plays a scripted
   Nuzlocke (town → route → first encounter → catch → dupe → over the cap → trainer battle → death → badge) – the real
   plugin reads it, draws its overlays, writes the run file, and opens souldew's screens once by itself. Screenshots:
   `docs/screenshots/emu_plugin_*.png`.
-- `python3 tools/emu_test.py launcher <Azahar.app>` runs the launcher's demo build.
+- `python3 tools/emu_test.py launcher <Azahar.app>` runs the launcher's demo build: it presses its own buttons through
+  the introduction, the menu, a run's tabs, the achievements, the settings and the new-run wizard
+  (`docs/screenshots/emu_launcher_*.png`).
 
 Azahar runs in portable mode (a `user/` folder next to `Azahar.app`), silent (audio output "null", volume 0).
 
