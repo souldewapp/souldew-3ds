@@ -188,7 +188,7 @@ def main():
         })
         shots = [(5.0, 'plugin_boot'), (9.5, 'plugin_new_area'), (14.5, 'plugin_first_encounter'), (20.0, 'plugin_caught'),
                  (24.5, 'plugin_forest'), (30.0, 'plugin_dupe'), (35.5, 'plugin_level_cap'), (39.5, 'plugin_trainer'),
-                 (44.0, 'plugin_death'), (49.5, 'plugin_badge'), (55.0, 'plugin_quiet'),
+                 (44.0, 'plugin_death'), (50.8, 'plugin_badge'), (53.4, 'plugin_trophy'),
                  (56.0, 'WAIT_TABS')]
         run(app, os.path.join(ROOT, 'mockgame', 'souldew-mock.cxi'), shots, 0, trace=True)
         path = os.path.join(user, 'sdmc', 'souldew', 'runs.json')
@@ -206,10 +206,14 @@ def main():
     elif mode == 'launcher':
         sample = os.path.join(ROOT, 'build', 'host', 'sample_runs.json')
         setup(app, {'souldew/runs.json': sample, '3ds/souldew/souldew.3gx': os.path.join(ROOT, 'plugin', 'souldew.3gx')})
-        shots = [(2.5, 'launcher_home'), (5.5, 'launcher_run_team'), (8.5, 'launcher_run_routes'), (11.5, 'launcher_run_graves'),
-                 (14.5, 'launcher_run_rules'), (17.5, 'launcher_home_again'), (20.5, 'launcher_new_game'),
-                 (24.0, 'launcher_new_rules'), (27.0, 'launcher_new_name')]
-        run(app, os.path.join(ROOT, 'launcher', 'souldew-demo.3dsx'), shots, 29)
+        # the demo build presses its own buttons (launcher/source/main.cpp, SOULDEW_DEMO): shots between the steps
+        shots = [(2.2, 'launcher_intro_1'), (4.3, 'launcher_intro_2'), (6.3, 'launcher_intro_3'), (8.3, 'launcher_intro_4'),
+                 (10.3, 'launcher_intro_5'), (12.9, 'launcher_menu'), (16.2, 'launcher_runs'), (18.6, 'launcher_run_team'),
+                 (21.6, 'launcher_run_routes'), (24.6, 'launcher_run_graves'), (27.6, 'launcher_run_rules'),
+                 (31.2, 'launcher_menu_again'), (34.2, 'launcher_trophies'), (37.2, 'launcher_trophies_collection'),
+                 (40.9, 'launcher_settings'), (43.6, 'launcher_settings_overlays'), (47.6, 'launcher_new_game'),
+                 (50.4, 'launcher_new_rules'), (53.6, 'launcher_new_name'), (57.6, 'launcher_menu_end')]
+        run(app, os.path.join(ROOT, 'launcher', 'souldew-demo.3dsx'), shots, 59)
     else:
         sys.exit('mode: plugin | launcher')
 

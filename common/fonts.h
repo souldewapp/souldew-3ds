@@ -19,6 +19,6 @@ struct Font {
   const unsigned char *bits;
 };
 
-extern const Font font_display, font_head, font_label, font_num, font_body, font_body_b, font_small;
+extern const Font font_title, font_display, font_head, font_label, font_num, font_body, font_body_b, font_small;
 
 }  // namespace sd

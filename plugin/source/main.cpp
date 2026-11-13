@@ -23,6 +23,7 @@
 #include "nuzlocke.h"
 #include "pk6.h"
 #include "screens.h"
+#include "trophies.h"
 
 namespace CTRPluginFramework {
 
@@ -32,7 +33,8 @@ using sd::GameInfo; using sd::ImageKind; using sd::Input; using sd::LiveFrame; u
 using sd::PartyRead; using sd::PartyReaderState; using sd::PixFmt; using sd::Rules; using sd::Run; using sd::RunStore;
 using sd::RunView; using sd::Tone; using sd::ViewAction; using sd::ViewCtx; using sd::kRunsPath; using sd::blit;
 using sd::fmt; using sd::gameByKey; using sd::gameByTitleId; using sd::langOf; using sd::readBattle; using sd::readParty;
-using sd::readZone; using sd::tr; using sd::zonePlaces; using sd::g_lang; using sd::K_B;
+using sd::readZone; using sd::tr; using sd::zonePlaces; using sd::g_lang; using sd::K_B; using sd::TrophyDef; using sd::trophyEvent;
+using sd::unlockTrophies;
 
 static RunStore g_store;
 static Run *g_run = nullptr;
@@ -178,6 +180,15 @@ static void poll() {
   int zone = readZone(*g_game, memRead, nullptr);
   if (zone >= 0 && zone < (int)g_places.size()) f.place = g_places[zone];
   std::vector<Event> ev = g_engine->update(f, wallSec());
+  // achievements: checked after every moment and every ~10 s (the engine also counts quiet things: 1 HP, evolutions)
+  static u32 sinceTrophyCheck = 0;
+  if (!ev.empty() || ++sinceTrophyCheck >= 40) {
+    sinceTrophyCheck = 0;
+    for (const TrophyDef *d : unlockTrophies(g_store, wallSec())) {
+      ev.push_back(trophyEvent(*d));
+      g_dirty = true;
+    }
+  }
   // the persistent battle badge: what this wild battle means for the run
   std::string badge;
   Tone tone = Tone::Info;
@@ -204,7 +215,7 @@ static void poll() {
   if (g_engine->dirty()) g_dirty = true;
   // save at most every 3 s (and right away when something important happened)
   bool important = false;
-  for (auto &e : ev) important |= e.kind == EventKind::Death || e.kind == EventKind::Caught || e.kind == EventKind::RunLost;
+  for (auto &e : ev) important |= e.kind == EventKind::Death || e.kind == EventKind::Caught || e.kind == EventKind::RunLost || e.kind == EventKind::Trophy;
   if (g_dirty && (important || svcGetSystemTick() - g_lastSave > 3ull * SYSCLOCK_ARM11)) saveStore();
 }
 
@@ -327,6 +338,11 @@ static bool openSouldew() {
       case ViewAction::Changed:
         g_dirty = true;
         redraw = true;
+        // (an achievement reached by hand – the run ended, a catch confirmed – shows once the game runs again)
+        g_layerLock.Lock();
+        for (const TrophyDef *d : unlockTrophies(g_store, wallSec()))
+          if (g_store.settings.overlays) g_layer.push(trophyEvent(*d), nowSec() + 0.5);
+        g_layerLock.Unlock();
         break;
       default: break;
     }
@@ -414,6 +430,8 @@ int main(void) {
     }
     g_store.active = r->id;
     g_run = r;
+    // what the runs reached before this session counts, but isn't announced again
+    if (!unlockTrophies(g_store, wallSec()).empty()) g_dirty = true;
     g_engine = new Engine(*g_run, *g_game);
     trace(0, 2);
     loadZonePlaces(tid);

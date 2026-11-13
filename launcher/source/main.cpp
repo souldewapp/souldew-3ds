@@ -12,6 +12,7 @@
 #include "i18n.h"
 #include "plgldr.h"
 #include "screens.h"
+#include "trophies.h"
 
 using namespace sd;
 
@@ -175,7 +176,16 @@ static Launch launchGame(const Run &run, bool enableLoader, bool withoutPlugin, 
 
 // ---- main -------------------------------------------------------------------------------------------------------
 
-enum class Screen { Home, Wizard, Run, Message };
+enum class Screen { Intro, Menu, Runs, Wizard, Run, Trophies, Settings, Message };
+
+static int depthOf(Screen s) {
+  switch (s) {
+    case Screen::Intro: case Screen::Menu: return 0;
+    case Screen::Run: return 2;
+    case Screen::Message: return 3;
+    default: return 1;
+  }
+}
 
 int main(int argc, char **argv) {
   gfxInit(GSP_BGR8_OES, GSP_BGR8_OES, false);
@@ -184,18 +194,31 @@ int main(int argc, char **argv) {
   // (no sound: souldew's launcher never initialises audio)
   g_top = new Canvas(400, 240);
   g_bottom = new Canvas(320, 240);
+  g_cacheBackdrops = true;
+  // the picture before a screen change, the screen drawn (without the achievement banner), the banner layer
+  Canvas *fromTop = new Canvas(400, 240), *fromBottom = new Canvas(320, 240);
+  Canvas *drawnTop = new Canvas(400, 240), *drawnBottom = new Canvas(320, 240);
+  Canvas *banner = new Canvas(400, 240);
   g_store.load(std::string("sdmc:") + kRunsPath);
   g_lang = langOf(g_store.settings);
   scanTitles();
 
+  MainMenu menu;
+  menu.intro = 0.f;
+  Onboarding intro;
   HomeScreen home;
   // start on the active run (the list shows the newest first)
   for (size_t i = 0; i < g_store.runs.size(); i++)
     if (g_store.runs[i].id == g_store.active) home.selected = (int)(g_store.runs.size() - 1 - i);
   NewRunWizard wiz;
   RunView view;
+  TrophyScreen trophies;
+  SettingsScreen settings;
   ViewCtx ctx;
-  Screen scr = Screen::Home;
+  OverlayLayer layer;
+  Screen scr = g_store.settings.onboarded ? Screen::Menu : Screen::Intro;
+  if (scr == Screen::Intro) intro.start(false);
+  Screen shown = scr, backTo = Screen::Menu;
   std::string status, msgTitle, msgBody;
   Tone msgTone = Tone::Info;
   const char *msgA = nullptr, *msgB = nullptr;
@@ -204,6 +227,27 @@ int main(int argc, char **argv) {
   bool redraw = true;
   bool quit = false;
   int downX = 0, downY = 0;
+  float trans = 1.f;  // a screen change in progress (0 → 1)
+  int transDir = 1;
+  double transStart = 0, menuStart = -1;
+  u64 bootMs = osGetTime();
+  auto now = [&]() { return (double)(osGetTime() - bootMs) / 1000.0; };
+
+  // achievements: what the runs reached since the last time – recorded, saved, shown as a banner
+  auto checkTrophies = [&](bool announce) {
+    std::vector<const TrophyDef *> fresh = unlockTrophies(g_store, wallSec());
+    if (fresh.empty()) return;
+    saveStore();
+    if (!announce) return;
+    if (fresh.size() > 2) {
+      Event e{EventKind::Trophy, Tone::Ok, fmt(tr("%d Erfolge freigeschaltet", "%d achievements unlocked"), (int)fresh.size()),
+              tr("Schau unter Erfolge im Men\xc3\xbc", "Have a look under Achievements in the menu")};
+      e.rarity = 2;
+      layer.push(e, now());
+    } else
+      for (auto *d : fresh) layer.push(trophyEvent(*d), now());
+  };
+  checkTrophies(g_store.settings.onboarded);
 
   auto openRun = [&](const std::string &id) {
     Run *r = g_store.byId(id);
@@ -236,6 +280,7 @@ int main(int argc, char **argv) {
                    "The souldew plugin is loaded for this game. In game: SELECT or the bottom-right corner opens souldew."),
                 "", Tone::Ok);
     present();
+    present();
     Launch l = launchGame(*r, enableLoader, withoutPlugin, detail);
     switch (l) {
       case Launch::Started: quit = true; break;
@@ -266,37 +311,94 @@ int main(int argc, char **argv) {
   };
 
 #ifdef SOULDEW_DEMO
-  // demo build: presses its own buttons on a schedule, so the emulator can take screenshots of every screen
+  // demo build: presses its own buttons on a schedule (seconds), so the emulator can take screenshots of every screen
+  // (tools/emu_test.py launcher shoots between the steps)
   struct Step {
-    int frame;
+    float at;
     uint32_t key;
   };
-  static const Step demo[] = {{240, K_A}, {420, K_R}, {600, K_R}, {780, K_R}, {960, K_B}, {1140, K_Y},
-                              {1320, K_A}, {1380, K_DOWN}, {1440, K_DOWN}, {1500, K_A}, {1680, K_B}, {1740, K_B}, {1800, K_B}};
-  int frameNo = 0;
+  static const Step demo[] = {
+      {3.0f, K_A}, {5.0f, K_A}, {7.0f, K_A}, {9.0f, K_A}, {11.0f, K_X},                       // the introduction → menu
+      {14.0f, K_DOWN}, {14.3f, K_RIGHT}, {14.6f, K_A},                                       // → runs
+      {17.0f, K_A}, {20.0f, K_R}, {23.0f, K_R}, {26.0f, K_R},                                // a run: team, routes, graves, rules
+      {29.0f, K_B}, {30.0f, K_B},                                                            // → runs → menu
+      {32.0f, K_DOWN}, {32.2f, K_LEFT}, {32.5f, K_A}, {35.0f, K_R}, {35.3f, K_R}, {35.6f, K_RIGHT},           // → achievements, "collection"
+      {38.0f, K_B}, {39.0f, K_RIGHT}, {39.3f, K_A}, {42.0f, K_DOWN},                         // → settings, overlays
+      {45.0f, K_B}, {46.0f, K_Y}, {49.0f, K_START}, {51.0f, K_DOWN}, {51.3f, K_DOWN}, {52.0f, K_START},  // new run
+      {55.0f, K_B}, {55.5f, K_B}, {56.0f, K_B},                                              // → menu
+  };
+  size_t demoNext = 0;
 #endif
   while (aptMainLoop() && !quit) {
     Input in = readInput();
 #ifdef SOULDEW_DEMO
-    frameNo++;
-    for (auto &st : demo)
-      if (st.frame == frameNo) in.pressed |= st.key;
-    if (frameNo > 1900) frameNo = 0;  // loop
+    while (demoNext < sizeof demo / sizeof demo[0] && now() >= demo[demoNext].at) in.pressed |= demo[demoNext++].key;
 #endif
     if (in.touchDown) {
       downX = in.tx;
       downY = in.ty;
     }
     switch (scr) {
-      case Screen::Home: {
+      case Screen::Intro: {
+        IntroAction a = intro.handle(in, g_store);
+        if (a == IntroAction::Language) saveStore();
+        if (a == IntroAction::Done || a == IntroAction::NewRun) {
+          saveStore();
+          if (intro.fromMenu) scr = backTo;
+          else if (a == IntroAction::NewRun) {
+            wiz.start(g_installed);
+            backTo = Screen::Menu;
+            scr = Screen::Wizard;
+          } else scr = Screen::Menu;
+        }
+        if (a != IntroAction::None) redraw = true;
+        break;
+      }
+      case Screen::Menu: {
+        MenuAction a = menu.handle(in, g_store);
+        switch (a) {
+          case MenuAction::Quit: quit = true; break;
+          case MenuAction::Continue: {
+            Run *r = g_store.activeRun();
+            if (!r && !g_store.runs.empty()) r = &g_store.runs.back();
+            if (r) {
+              openRun(r->id);
+              start(false, false);
+            }
+            break;
+          }
+          case MenuAction::NewRun:
+            wiz.start(g_installed);
+            backTo = Screen::Menu;
+            scr = Screen::Wizard;
+            break;
+          case MenuAction::Runs: scr = Screen::Runs; break;
+          case MenuAction::Trophies:
+            trophies.reset();
+            scr = Screen::Trophies;
+            break;
+          case MenuAction::Settings: scr = Screen::Settings; break;
+          case MenuAction::Help:
+            intro.start(true);
+            backTo = Screen::Menu;
+            scr = Screen::Intro;
+            break;
+          default: break;
+        }
+        if (a != MenuAction::None) redraw = true;
+        break;
+      }
+      case Screen::Runs: {
         HomeAction a = home.handle(in, g_store);
         if (a == HomeAction::Quit) quit = true;
+        else if (a == HomeAction::Back) scr = Screen::Menu;
         else if (a == HomeAction::OpenRun) openRun(home.selectedId(g_store));
         else if (a == HomeAction::Continue) {
           openRun(home.selectedId(g_store));
           start(false, false);
         } else if (a == HomeAction::NewRun) {
           wiz.start(g_installed);
+          backTo = Screen::Runs;
           scr = Screen::Wizard;
         }
         if (a != HomeAction::None) redraw = true;
@@ -304,7 +406,7 @@ int main(int argc, char **argv) {
       }
       case Screen::Wizard: {
         WizardAction a = wiz.handle(in, g_installed);
-        if (a == WizardAction::Cancel) scr = Screen::Home;
+        if (a == WizardAction::Cancel) scr = backTo;
         else if (a == WizardAction::AskName) askName(wiz.name);
         else if (a == WizardAction::Create) {
           const GameInfo *g = gameAt(wiz.gameIndex);
@@ -313,6 +415,7 @@ int main(int argc, char **argv) {
           saveStore();
           home.selected = 0;
           openRun(id);
+          checkTrophies(true);
         }
         if (a != WizardAction::None) redraw = true;
         break;
@@ -321,20 +424,41 @@ int main(int argc, char **argv) {
         ViewAction a = view.handle(in, ctx, wallSec());
         if (a == ViewAction::Back) {
           saveStore();
-          scr = Screen::Home;
+          scr = Screen::Runs;
         } else if (a == ViewAction::StartGame) start(false, false);
-        else if (a == ViewAction::Changed) saveStore();
-        else if (a == ViewAction::ToggleOverlays) {
+        else if (a == ViewAction::Changed) {
+          saveStore();
+          checkTrophies(true);
+        } else if (a == ViewAction::ToggleOverlays) {
           g_store.settings.overlays = !g_store.settings.overlays;
           ctx.overlays = g_store.settings.overlays;
           saveStore();
         } else if (a == ViewAction::DeleteRun) {
           g_store.remove(ctx.run->id);
+          ctx.run = nullptr;
           saveStore();
           home.selected = 0;
-          scr = Screen::Home;
+          scr = Screen::Runs;
         }
         if (a != ViewAction::None) redraw = true;
+        break;
+      }
+      case Screen::Trophies: {
+        TrophyAction a = trophies.handle(in, g_store);
+        if (a == TrophyAction::Back) scr = Screen::Menu;
+        if (a != TrophyAction::None) redraw = true;
+        break;
+      }
+      case Screen::Settings: {
+        SettingsAction a = settings.handle(in, g_store);
+        if (a == SettingsAction::Back) scr = Screen::Menu;
+        else if (a == SettingsAction::Intro) {
+          intro.start(true);
+          backTo = Screen::Settings;
+          scr = Screen::Intro;
+        }
+        if (a == SettingsAction::Changed || a == SettingsAction::Language) saveStore();
+        if (a != SettingsAction::None) redraw = true;
         break;
       }
       case Screen::Message: {
@@ -345,7 +469,7 @@ int main(int argc, char **argv) {
         if (in.pressed & KEY_A) tap = 1;
         if (in.pressed & KEY_B) tap = msgB ? 2 : 1;
         if (tap) {
-          scr = ctx.run ? Screen::Run : Screen::Home;
+          scr = ctx.run ? Screen::Run : Screen::Menu;
           redraw = true;
           if (msgKind == 1) start(tap == 1, tap == 2);
           else if (msgKind == 3 && tap == 1) start(false, true);
@@ -354,24 +478,69 @@ int main(int argc, char **argv) {
       }
     }
     if (in.pressed || in.touchDown || in.touchUp || in.touchHeld) redraw = true;
-    if (redraw && !quit) {
+    if (quit) break;
+    // a screen change: keep the last picture to slide from
+    if (scr != shown) {
+      fromTop->copyFrom(*g_top);
+      fromBottom->copyFrom(*g_bottom);
+      transDir = depthOf(scr) >= depthOf(shown) ? 1 : -1;
+      trans = 0.f;
+      transStart = now();
+      shown = scr;
+      redraw = true;
+    }
+    // the logo's rings link up when the menu first appears
+    bool animating = false;
+    if (scr == Screen::Menu && menu.intro < 1.f) {
+      if (menuStart < 0) menuStart = now();
+      menu.intro = std::min(1.f, (float)((now() - menuStart) / 0.9));
+      redraw = animating = true;
+    }
+    if (redraw) {
       switch (scr) {
-        case Screen::Home: home.draw(*g_top, *g_bottom, g_store, g_installed, status); break;
-        case Screen::Wizard: wiz.draw(*g_top, *g_bottom, g_installed); break;
+        case Screen::Intro: intro.draw(*drawnTop, *drawnBottom, g_store); break;
+        case Screen::Menu: menu.draw(*drawnTop, *drawnBottom, g_store, g_installed, status); break;
+        case Screen::Runs: home.draw(*drawnTop, *drawnBottom, g_store, g_installed, status); break;
+        case Screen::Wizard: wiz.draw(*drawnTop, *drawnBottom, g_installed); break;
         case Screen::Run:
-          view.drawTop(*g_top, ctx);
-          view.drawBottom(*g_bottom, ctx);
+          view.drawTop(*drawnTop, ctx);
+          view.drawBottom(*drawnBottom, ctx);
           break;
-        case Screen::Message: drawMessage(*g_top, *g_bottom, msgTitle, msgBody, "", msgTone, msgA, msgB, &msgHits); break;
+        case Screen::Trophies: trophies.draw(*drawnTop, *drawnBottom, g_store); break;
+        case Screen::Settings: settings.draw(*drawnTop, *drawnBottom, g_store); break;
+        case Screen::Message: drawMessage(*drawnTop, *drawnBottom, msgTitle, msgBody, "", msgTone, msgA, msgB, &msgHits); break;
+      }
+    }
+    bool bannerUp = layer.active(now()) || layer.busy();
+    static bool bannerWas = false;
+    bool bannerEnd = bannerWas && !bannerUp;  // one more frame: the banner's last picture goes away
+    bannerWas = bannerUp;
+    if (redraw || trans < 1.f || bannerUp || bannerEnd) {
+      if (trans < 1.f) {
+        trans = std::min(1.f, (float)((now() - transStart) / 0.22));
+        transition(*g_top, *fromTop, *drawnTop, trans, 36 * transDir);
+        transition(*g_bottom, *fromBottom, *drawnBottom, trans, 36 * transDir);
+      } else {
+        g_top->copyFrom(*drawnTop);
+        g_bottom->copyFrom(*drawnBottom);
+      }
+      if (bannerUp) {
+        sd::Rect d = layer.drawTop(*banner, now());
+        if (d.w) g_top->drawRegion(*banner, d);
       }
       present();
-      present();  // both buffers
+      if (!animating && trans >= 1.f && !bannerUp) present();  // both buffers
       redraw = false;
     }
     gspWaitForVBlank();
   }
   delete g_top;
   delete g_bottom;
+  delete fromTop;
+  delete fromBottom;
+  delete drawnTop;
+  delete drawnBottom;
+  delete banner;
   gfxExit();
   return 0;
 }

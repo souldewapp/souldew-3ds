@@ -16,6 +16,7 @@
 #include "../common/pk6.h"
 #include "../common/run.h"
 #include "../common/screens.h"
+#include "../common/trophies.h"
 
 using namespace sd;
 
@@ -446,6 +447,8 @@ static void testEngine() {
   ev = eng.update(f, t += 2);
   CHECK(count(ev, EventKind::Death) == 1 && run.mon("p2")->dead);
   CHECK(run.mon("p2")->cause.find("Purmel") != std::string::npos);  // Scatterbug in German
+  CHECK(run.mon("p2")->killer == 664 && run.mon("p2")->killerLevel == 6 && run.mon("p2")->killerTrainer);
+  CHECK(run.stats.capBreaks == 1);  // the trainer battle started over the cap
   // the party data catches up: no second death
   f.party[1].hp = 0;
   ev = eng.update(f, t += 1);
@@ -455,11 +458,12 @@ static void testEngine() {
   f.badges = 1;
   ev = eng.update(f, t += 5);
   CHECK(count(ev, EventKind::Badge) == 1 && run.badges == 1 && run.levelCap() == 25);
+  CHECK(run.stats.badgeAt.size() == 1 && run.stats.badgeAt[0] == t);
   CHECK(run.caught() == 2 && run.dead() == 1 && run.alive() == 1);
   // whiteout: the run is lost (blackout rule "party")
   f.party[0].hp = 0;
   ev = eng.update(f, t += 5);
-  CHECK(count(ev, EventKind::Whiteout) == 1 && run.status == "lost");
+  CHECK(count(ev, EventKind::Whiteout) == 1 && run.status == "lost" && run.stats.endedAt == t);
   // a missed encounter: battle in a new area, nothing joins, the player walks on
   RunStore st2;
   Run &r2 = st2.create("Miss", "xy", rules, 0);
@@ -484,6 +488,205 @@ static void testEngine() {
   g.party.push_back(mon("q2", 1, 10, 30, 30, 16));
   ev = e2.update(g, 20);
   CHECK(count(ev, EventKind::Gift) == 1 && r2.encounterFor("Route 3") && r2.encounterFor("Route 3")->status == "gift");
+}
+
+static void testEngineMoments() {
+  SECTION("engine moments: evolution, exactly 1 HP, a monotype team, underdog badge");
+  RunStore st;
+  Rules rules;
+  rules.applyPreset("classic");
+  Run &run = st.create("M", "xy", rules, 0);
+  Engine eng(run, *gameByKey("xy"));
+  auto mon = [](const char *key, int sp, int lv, int hp) {
+    Mon m;
+    m.key = key;
+    m.species = sp;
+    m.level = lv;
+    m.hp = hp;
+    m.maxHp = 40;
+    m.metLocation = 10;
+    return m;
+  };
+  LiveFrame f;
+  f.partyOk = true;
+  f.badges = 0;
+  f.place = 10;
+  f.party = {mon("w1", 7, 10, 30)};  // Squirtle
+  eng.update(f, 1);
+  CHECK(run.mons[0].firstSpecies == 7);
+  f.party[0].species = 8;  // Wartortle
+  std::vector<Event> ev = eng.update(f, 2);
+  CHECK(count(ev, EventKind::Evolved) == 1 && run.stats.evolutions == 1 && run.mons[0].species == 8 && run.mons[0].firstSpecies == 7);
+  f.party[0].hp = 1;
+  eng.update(f, 3);
+  eng.update(f, 4);  // still 1 HP: counted once
+  CHECK(run.stats.oneHp == 1);
+  // six Water-types
+  const int water[6] = {8, 54, 60, 72, 90, 116};
+  f.party.clear();
+  for (int i = 0; i < 6; i++) f.party.push_back(mon(fmt("w%d", i + 1).c_str(), water[i], 10, 30));
+  f.party[0].species = 8;
+  eng.update(f, 5);
+  CHECK(run.stats.monotypeAt == 5);
+  // a badge with everyone below the cap (12): underdog
+  f.badges = 1;
+  eng.update(f, 6);
+  CHECK(run.stats.underdog == 1 && run.stats.badgeAt.size() == 1);
+}
+
+static void testTrophies() {
+  SECTION("achievements: unlocking from the runs, kept in the profile, medals, round trip");
+  RunStore st;
+  CHECK(evaluateTrophies(st).size() == (size_t)trophyCount() && trophyCount() > 50);
+  for (int i = 0; i < trophyCount(); i++) CHECK(trophyById(trophyAt(i).id) == &trophyAt(i));
+  CHECK(unlockTrophies(st, 1).empty());  // nothing yet
+  Rules r;
+  r.applyPreset("hardcore");
+  Run &run = st.create("T", "xy", r, 1000);
+  auto names = [](const std::vector<const TrophyDef *> &v) {
+    std::string s;
+    for (auto *d : v) s += std::string(d->id) + ",";
+    return s;
+  };
+  std::string got = names(unlockTrophies(st, 2000));
+  CHECK(got == "firstRun,");
+  CHECK(unlockTrophies(st, 2001).empty());  // once
+  // a catch, a badge with no death since the start, a Pokémon killed by a wild Magikarp
+  run.encounters.push_back({"Route 2", 12, 129, 3, "caught", "a", false, 1100});
+  RunMon a;
+  a.key = "a";
+  a.species = a.firstSpecies = 129;
+  a.level = 10;
+  run.mons.push_back(a);
+  run.stats.badgeAt = {1500};
+  run.badges = 1;
+  got = names(unlockTrophies(st, 3000));
+  CHECK(got.find("firstCatch,") != std::string::npos && got.find("firstBadge,") != std::string::npos &&
+        got.find("cleanBadge,") != std::string::npos);
+  run.mons[0].species = 130;  // evolved into Gyarados …
+  run.mons[0].dead = true;    // … and lost to a Magikarp
+  run.mons[0].killer = 129;
+  run.mons[0].deathTs = 1600;
+  got = names(unlockTrophies(st, 4000));
+  CHECK(got.find("gyarados,") != std::string::npos && got.find("magikarp,") != std::string::npos);
+  // the run is won with the hardcore rules … but not deathless
+  run.end("won", 5000);
+  got = names(unlockTrophies(st, 5000));
+  CHECK(got.find("firstWin,") != std::string::npos && got.find("hardcoreWin,") != std::string::npos &&
+        got.find("lowDeathWin,") != std::string::npos && got.find("deathlessWin") == std::string::npos);
+  // progress of a counted one
+  std::vector<TrophyState> states = evaluateTrophies(st);
+  for (auto &s : states)
+    if (std::string(s.def->id) == "catches50") CHECK(s.n == 1 && !s.ok);
+  // the profile keeps them when the run goes; the owned species too
+  st.remove(run.id);
+  states = evaluateTrophies(st);
+  int ok = 0;
+  for (auto &s : states) ok += s.ok;
+  CHECK(ok == (int)st.profile.trophies.size() && ok >= 8);
+  CHECK(st.profile.has("magikarp") && st.profile.when("firstRun") == 2000);
+  CHECK(std::binary_search(st.profile.dex.begin(), st.profile.dex.end(), 130));
+  std::vector<MedalState> medals = medalStates(states);
+  CHECK(medals.size() == 5 && medals[4].kind == 4 && medals[4].value == ok);
+  CHECK(medals[0].tier >= 0);  // journey: bronze at least
+  RunStore back;
+  CHECK(back.parseText(st.toText()));
+  CHECK(back.profile.trophies.size() == st.profile.trophies.size() && back.profile.dex == st.profile.dex &&
+        back.profile.runsCreated == 1 && back.settings.onboarded == st.settings.onboarded);
+  // run stats + the killer survive the run file
+  RunStore s2;
+  Run &r2 = s2.create("S", "sm", r, 0);
+  r2.stats.badgeAt = {10, 20};
+  r2.stats.oneHp = 2;
+  r2.stats.monotypeAt = 30;
+  RunMon k;
+  k.key = "k";
+  k.species = 25;
+  k.firstSpecies = 172;
+  k.dead = true;
+  k.killer = 19;
+  k.killerLevel = 4;
+  r2.mons.push_back(k);
+  RunStore b2;
+  CHECK(b2.parseText(s2.toText()));
+  const Run &br = b2.runs[0];
+  CHECK(br.stats.badgeAt.size() == 2 && br.stats.oneHp == 2 && br.stats.monotypeAt == 30);
+  CHECK(br.mons[0].firstSpecies == 172 && br.mons[0].killer == 19 && br.mons[0].killerLevel == 4 && !br.mons[0].killerTrainer);
+  // an old file (no profile, no "onboarded"): runs mean the introduction was seen
+  RunStore old;
+  CHECK(old.parseText("{\"runs\":[{\"id\":\"x\",\"game\":\"xy\"}]}") && old.settings.onboarded && old.profile.runsCreated == 1);
+  RunStore none;
+  CHECK(none.parseText("{\"runs\":[]}") && !none.settings.onboarded);
+}
+
+static void testScreens() {
+  SECTION("launcher screens: menu focus + actions, introduction language + pages, settings, achievements filter");
+  g_lang = Lang::De;
+  RunStore st;
+  std::vector<InstalledGame> inst;
+  Canvas top(400, 240), bottom(320, 240);
+  MainMenu menu;
+  menu.draw(top, bottom, st, inst, "");
+  Input in;
+  in.pressed = K_A;
+  CHECK(menu.handle(in, st) == MenuAction::NewRun);  // no run yet: "continue" creates one
+  in.pressed = K_DOWN;
+  menu.handle(in, st);
+  in.pressed = K_RIGHT;
+  menu.handle(in, st);
+  in.pressed = K_DOWN;
+  menu.handle(in, st);
+  CHECK(menu.focus == 4);
+  in.pressed = K_A;
+  CHECK(menu.handle(in, st) == MenuAction::Settings);
+  // a tap on the achievements tile (left column, second row)
+  menu.draw(top, bottom, st, inst, "");
+  in = Input();
+  in.touchDown = true;
+  in.tx = 60;
+  in.ty = 140;
+  menu.handle(in, st);
+  in = Input();
+  in.touchUp = true;
+  in.tx = 60;
+  in.ty = 140;
+  CHECK(menu.handle(in, st) == MenuAction::Trophies);
+  // the introduction: English, through the pages, done
+  Onboarding ob;
+  ob.start(false);
+  ob.draw(top, bottom, st);
+  in = Input();
+  in.pressed = K_RIGHT;
+  CHECK(ob.handle(in, st) == IntroAction::Language && st.settings.lang == "en" && g_lang == Lang::En);
+  in.pressed = K_A;
+  for (int i = 0; i < Onboarding::kPages - 1; i++) CHECK(ob.handle(in, st) == IntroAction::Changed);
+  CHECK(ob.page == Onboarding::kPages - 1 && !st.settings.onboarded);
+  CHECK(ob.handle(in, st) == IntroAction::NewRun && st.settings.onboarded);
+  // settings: language back to German, overlays off
+  SettingsScreen se;
+  se.draw(top, bottom, st);
+  in.pressed = K_LEFT;
+  CHECK(se.handle(in, st) == SettingsAction::Language && st.settings.lang == "de" && g_lang == Lang::De);
+  in.pressed = K_DOWN;
+  se.handle(in, st);
+  in.pressed = K_A;
+  se.handle(in, st);
+  CHECK(!st.settings.overlays);
+  // achievements: L / R switch the category
+  TrophyScreen ts;
+  ts.draw(top, bottom, st);
+  in.pressed = K_R;
+  CHECK(ts.handle(in, st) == TrophyAction::Changed && ts.filter == 1);
+  in.pressed = K_B;
+  CHECK(ts.handle(in, st) == TrophyAction::Back);
+  // a screen change blends the two pictures
+  Canvas a(8, 2), b(8, 2), o(8, 2);
+  a.clear(Color(0, 0, 0));
+  b.clear(Color(200, 100, 50));
+  transition(o, a, b, 1.f, 0);
+  CHECK(o.pixels()[0] == 0xffc86432u);
+  transition(o, a, b, 0.f, 0);
+  CHECK(o.pixels()[0] == 0xff000000u);
 }
 
 // ---- the blitter ------------------------------------------------------------------------------------------------
@@ -575,6 +778,9 @@ int main(int argc, char **argv) {
   testZones(dump);
   testJsonRun();
   testEngine();
+  testEngineMoments();
+  testTrophies();
+  testScreens();
   testBlit();
   testUi();
   std::printf("\n%d passed, %d failed\n", g_pass, g_fail);

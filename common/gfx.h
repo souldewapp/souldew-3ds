@@ -54,7 +54,17 @@ class Canvas {
   void roundRectStroke(int x, int y, int w, int h, int r, int t, Color c);
   // horizontal gradient clipped to a rounded rect
   void roundRectGradient(int x, int y, int w, int h, int r, Color left, Color right);
+  // vertical gradient clipped to a rounded rect (top → bottom)
+  void roundRectVGradient(int x, int y, int w, int h, int r, Color top, Color bottom);
   void circle(int cx, int cy, int r, Color c);
+  // a soft radial glow: `c` at the centre, fading out (quadratically) towards the ellipse (rx, ry)
+  void glow(int cx, int cy, int rx, int ry, Color c);
+  // a soft drop shadow below a rounded rect: `spread` px of blur, shifted down by `dy`
+  void shadow(int x, int y, int w, int h, int r, int spread, int dy, uint8_t alpha);
+  // a dashed 1px outline of a rounded rect (empty slots)
+  void dashedRoundRect(int x, int y, int w, int h, int r, Color c, int dash = 3);
+  // pixel art: rows of characters, `palette` maps a character to a colour ('.' / ' ' = transparent), scaled
+  void pixelArt(int x, int y, const char *const *rows, int nrows, int scale, Color (*palette)(char, void *), void *ud);
   // the card used everywhere: fill + 1px edge (+ optional accent bar on the left)
   void card(int x, int y, int w, int h, int r, Color fill, Color edge, Color accent = Color(), int accentW = 0);
 
@@ -70,6 +80,8 @@ class Canvas {
 
   // copies a region of another canvas (alpha blended)
   void draw(const Canvas &src, int dx, int dy);
+  void drawRegion(const Canvas &src, Rect r);  // src's pixels in r, blended onto the same place
+  void copyFrom(const Canvas &src);            // same size: replaces every pixel
 
  private:
   int w_, h_;

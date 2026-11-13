@@ -11,6 +11,7 @@
 #include "../common/fbblit.h"
 #include "../common/i18n.h"
 #include "../common/screens.h"
+#include "../common/trophies.h"
 #include "png.h"
 
 using namespace sd;
@@ -73,11 +74,14 @@ static Encounter enc(const char *area, int species, int level, const char *statu
   return e;
 }
 
+// sample times on the console's clock (seconds since 1900, local): 1 Nov 2026 + offsets
+static const long long T0 = 4002480000LL;
+
 static RunStore sampleStore() {
   RunStore st;
   Rules r;
   r.applyPreset("classic");
-  Run &run = st.create("Kims Nuzlocke", "xy", r, 1700000000);
+  Run &run = st.create("Kims Nuzlocke", "xy", r, T0);
   run.badges = 3;
   run.lastArea = "Route 7";
   run.mons = {
@@ -91,15 +95,24 @@ static RunStore sampleStore() {
       mk("d2", 16, "", 14, 0, 38, "Route 4", -1),                 // Pidgey
   };
   run.mons[0].metLevel = 5;
+  run.mons[0].firstSpecies = 656;  // a Froakie that evolved
+  run.mons[1].firstSpecies = 661;
   for (auto &m : run.mons) m.maxHp = m.maxHp ? m.maxHp : 64;
   run.mons[5].hp = 64;
   run.mons[6].dead = true;
   run.mons[6].cause = "Pikachu Lv 6";
+  run.mons[6].killer = 25;
+  run.mons[6].killerLevel = 6;
   run.mons[6].deathArea = "Santalune Forest";
-  run.mons[6].deathTs = 1700001000;
+  run.mons[6].deathTs = T0 + 3600;
   run.mons[7].dead = true;
   run.mons[7].cause = "Trainerkampf \xc2\xb7 Grant: Tyrunt Lv 25";
-  run.mons[7].deathTs = 1700002000;
+  run.mons[7].killer = 696;
+  run.mons[7].killerLevel = 25;
+  run.mons[7].killerTrainer = true;
+  run.mons[7].deathTs = T0 + 4 * 3600;
+  run.stats.badgeAt = {T0 + 2 * 3600, T0 + 5 * 3600, T0 + 6 * 3600};
+  run.stats.evolutions = 2;
   run.encounters = {
       enc("Starter", 656, 5, "caught", "a1"),
       enc("Route 2", 661, 3, "caught", "a2"),
@@ -112,22 +125,26 @@ static RunStore sampleStore() {
       enc("Route 7", 682, 12, "caught", "a6"),
       enc("Connecting Cave", 41, 14, "open"),
   };
+  for (size_t i = 0; i < run.encounters.size(); i++) run.encounters[i].ts = T0 + 600 * (long long)i;
   run.encounters[0].starter = true;
   run.log.push_back({0, "caught", "Gefangen: Parfi (Route 7)"});
   std::string firstId = run.id;
   Rules h;
   h.applyPreset("hardcore");
-  Run &r2 = st.create("Rubin Hardcore", "oras", h, 1700100000);
+  Run &r2 = st.create("Rubin Hardcore", "oras", h, T0 - 86400 * 9);
   r2.badges = 6;
   r2.encounters = {enc("Route 101", 263, 2, "caught", "x"), enc("Route 102", 280, 4, "missed")};
   r2.mons = {mk("x", 263, "", 12, 0, 30, "Route 101", -1)};
   r2.mons[0].dead = true;
   r2.status = "lost";
-  Run &r3 = st.create("Sonne Solo", "sm", r, 1700200000);
+  r2.stats.endedAt = T0 - 86400 * 2;
+  Run &r3 = st.create("Sonne Solo", "sm", r, T0 - 86400 * 20);
   r3.milestone = 2;
   r3.encounters = {enc("Route 1", 731, 3, "caught", "y")};
   r3.mons = {mk("y", 731, "Picki", 20, 50, 50, "Route 1", 0)};
   st.active = firstId;  // (create() moved the runs: `run` is stale here)
+  st.settings.onboarded = true;
+  unlockTrophies(st, T0 + 7 * 3600);  // what these runs have reached
   return st;
 }
 
@@ -216,24 +233,66 @@ static void overlayShot(const char *name, const std::vector<Event> &events, doub
   save3ds(name, a, b);
 }
 
+static Input tap(int x, int y, bool down) {
+  Input in;
+  in.tx = x;
+  in.ty = y;
+  if (down) in.touchDown = in.touchHeld = true;
+  else in.touchUp = true;
+  return in;
+}
+
 int main(int argc, char **argv) {
   if (argc > 1) OUT = argv[1];
   if (argc > 2 && !std::strcmp(argv[2], "en")) g_lang = Lang::En;
   std::string sfx = g_lang == Lang::En ? "_en" : "";
   RunStore store = sampleStore();
-  if (argc > 3) store.save(argv[3]);  // the sample run file for the emulator test (tools/emu_test.py launcher)
+  store.settings.lang = g_lang == Lang::En ? "en" : "de";
+  if (argc > 3) {
+    // the sample run file for the emulator test (tools/emu_test.py launcher): it starts with the introduction
+    RunStore s2 = store;
+    s2.settings.onboarded = false;
+    s2.save(argv[3]);
+  }
   std::vector<InstalledGame> inst = sampleInstalled();
   Canvas top(400, 240), bottom(320, 240);
 
-  // launcher: home
+  // launcher: the title menu
+  MainMenu menu;
+  menu.draw(top, bottom, store, inst, "");
+  save3ds("launcher_menu" + sfx, top, bottom);
+  menu.focus = 3;
+  menu.draw(top, bottom, store, inst, "");
+  save3ds("launcher_menu_focus" + sfx, top, bottom);
+  menu.focus = 0;
+  menu.intro = 0.45f;
+  menu.draw(top, bottom, store, inst, "");
+  save3ds("launcher_menu_intro" + sfx, top, bottom);
+  menu.intro = 1.f;
+  RunStore empty;
+  empty.settings = store.settings;
+  menu.draw(top, bottom, empty, inst, "");
+  save3ds("launcher_menu_first" + sfx, top, bottom);
+
+  // launcher: the introduction (first launch)
+  {
+    Onboarding ob;
+    ob.start(false);
+    RunStore fresh;
+    fresh.settings.lang = store.settings.lang;
+    for (int p = 0; p < Onboarding::kPages; p++) {
+      ob.page = p;
+      ob.focus = p == 0 ? (g_lang == Lang::En ? 1 : 0) : 3;
+      ob.draw(top, bottom, fresh);
+      save3ds(fmt("launcher_intro_%d", p + 1) + sfx, top, bottom);
+    }
+  }
+
+  // launcher: the runs
   HomeScreen home;
   home.selected = 2;  // newest first: index 2 = the X/Y run
   home.draw(top, bottom, store, inst, "");
-  save3ds("launcher_home" + sfx, top, bottom);
-  RunStore empty;
-  HomeScreen home2;
-  home2.draw(top, bottom, empty, inst, "");
-  save3ds("launcher_welcome" + sfx, top, bottom);
+  save3ds("launcher_runs" + sfx, top, bottom);
 
   // launcher: new run
   NewRunWizard wiz;
@@ -262,6 +321,84 @@ int main(int argc, char **argv) {
     view.drawBottom(bottom, ctx);
     save3ds(std::string("launcher_run_") + tabs[t] + sfx, top, bottom);
   }
+  {
+    // the rules tab scrolled down: "End the run" → the sheet
+    RunView v2;
+    v2.tab = 3;
+    v2.drawBottom(bottom, ctx);
+    Input in;
+    for (int k = 0; k < 12; k++) {
+      in = Input();
+      in.pressed = K_DOWN;
+      v2.handle(in, ctx, 0);
+    }
+    v2.drawTop(top, ctx);
+    v2.drawBottom(bottom, ctx);
+    save3ds("launcher_run_rules_end" + sfx, top, bottom);
+    // tap the "end the run" button (found by scanning for it in the scrolled view: 3rd button from the bottom)
+    for (int y = 40; y < 196; y += 2) {
+      Run before = *run;
+      v2.handle(tap(160, y, true), ctx, 0);
+      v2.handle(tap(160, y, false), ctx, 0);
+      v2.drawBottom(bottom, ctx);
+      // the sheet is up when a dark scrim covers the tab bar
+      uint32_t p = bottom.pixels()[5 * 320 + 160];
+      if (((p >> 16) & 0xff) < 20) break;
+      *run = before;
+    }
+    v2.drawTop(top, ctx);
+    save3ds("launcher_run_end" + sfx, top, bottom);
+  }
+
+  // launcher: achievements + settings
+  {
+    TrophyScreen ts;
+    ts.draw(top, bottom, store);
+    save3ds("launcher_trophies" + sfx, top, bottom);
+    ts.filter = 3;  // skill
+    ts.focus = 1;
+    ts.draw(top, bottom, store);
+    save3ds("launcher_trophies_skill" + sfx, top, bottom);
+    ts.filter = 4;  // fun: secrets
+    ts.focus = 0;
+    for (int i = 0; i < 8; i++) {
+      Input in;
+      in.pressed = K_DOWN;
+      ts.handle(in, store);
+    }
+    ts.draw(top, bottom, store);
+    save3ds("launcher_trophies_fun" + sfx, top, bottom);
+    SettingsScreen se;
+    se.draw(top, bottom, store);
+    save3ds("launcher_settings" + sfx, top, bottom);
+    se.focus = 1;
+    se.draw(top, bottom, store);
+    save3ds("launcher_settings_overlays" + sfx, top, bottom);
+    se.focus = 4;
+    se.draw(top, bottom, store);
+    save3ds("launcher_settings_about" + sfx, top, bottom);
+  }
+
+  // a screen change, halfway (menu → runs) and an achievement banner in the launcher
+  {
+    Canvas t1(400, 240), b1(320, 240), t2(400, 240), b2(320, 240);
+    MainMenu m2;
+    m2.focus = 2;
+    m2.draw(t1, b1, store, inst, "");
+    home.draw(t2, b2, store, inst, "");
+    transition(top, t1, t2, 0.45f, 40);
+    transition(bottom, b1, b2, 0.45f, 40);
+    save3ds("launcher_transition" + sfx, top, bottom);
+    m2.focus = 0;
+    m2.draw(top, bottom, store, inst, "");
+    OverlayLayer ol;
+    ol.push(trophyEvent(*trophyById("firstEvolution")), 0);
+    Canvas ov(400, 240);
+    Rect d = ol.drawTop(ov, 1.0);
+    if (d.w) top.draw(ov, 0, 0);
+    save3ds("launcher_trophy_banner" + sfx, top, bottom);
+  }
+
   // launching message
   drawMessage(top, bottom, tr("Starte Pok\xc3\xa9mon Y \xe2\x80\xa6", "Starting Pok\xc3\xa9mon Y \xe2\x80\xa6"),
               tr("Das souldew-Plugin wird f\xc3\xbcr dieses Spiel geladen. Im Spiel: SELECT oder die Ecke unten rechts \xc3\xb6" "ffnet souldew.",
@@ -275,8 +412,7 @@ int main(int argc, char **argv) {
   save3ds("launcher_pluginloader_off" + sfx, top, bottom);
 
   // in game: overlays on the (placeholder) game picture
-  int r7 = locId("Route 7"), r8 = locId("Route 8");
-  (void)r7;
+  int r8 = locId("Route 8");
   Event newArea{EventKind::NewArea, Tone::Info, areaLabel(6, r8, "Route 8", g_lang), tr("Neues Gebiet \xc2\xb7 die erste Begegnung z\xc3\xa4hlt", "New area \xc2\xb7 the first encounter counts")};
   Event first{EventKind::FirstEncounter, Tone::Ok, fmt(tr("Erste Begegnung: %s", "First encounter: %s"), (std::string(speciesName(278, g_lang)) + " Lv 13").c_str()),
               fmt(tr("%s \xc2\xb7 das ist dein Fang", "%s \xc2\xb7 this is your catch"), areaLabel(6, r8, "Route 8", g_lang).c_str()), 278};
@@ -287,17 +423,23 @@ int main(int argc, char **argv) {
   Event cap{EventKind::OverCap, Tone::Warn, fmt(tr("%s Lv %d \xc3\xbc" "ber dem Cap", "%s Lv %d is over the cap"), "Quaxi", 33),
             fmt(tr("Level-Cap %d (%s)%s", "Level cap %d (%s)%s"), 32, "Korrina", ""), 657};
   Event caught{EventKind::Caught, Tone::Ok, fmt(tr("Gefangen: %s", "Caught: %s"), speciesName(278, g_lang)), areaLabel(6, r8, "Route 8", g_lang), 278};
+  Event badge{EventKind::Badge, Tone::Ok, fmt(tr("Orden %d!", "Badge %d!"), 4), fmt(tr("Neuer Level-Cap: %d (%s)", "New level cap: %d (%s)"), 37, "Lino")};
+  Event evolved{EventKind::Evolved, Tone::Ok, fmt(tr("%s hat sich entwickelt", "%s evolved"), "Quaxi"),
+                fmt("%s \xe2\x86\x92 %s", speciesName(657, g_lang), speciesName(658, g_lang)), 658};
   overlayShot(("ingame_new_area" + sfx).c_str(), {newArea}, 1.0, "", Tone::Info, false, PixFmt::BGR8);
   overlayShot(("ingame_first_encounter" + sfx).c_str(), {first}, 1.2, tr("ERSTE BEGEGNUNG", "FIRST ENCOUNTER"), Tone::Ok, true, PixFmt::RGB565);
   overlayShot(("ingame_dupe" + sfx).c_str(), {dupe}, 1.2, "DUPE", Tone::Warn, true, PixFmt::BGR8);
   overlayShot(("ingame_death" + sfx).c_str(), {death}, 1.2, "", Tone::Info, true, PixFmt::RGB565);
   overlayShot(("ingame_level_cap" + sfx).c_str(), {cap}, 1.2, "CAP 32", Tone::Warn, true, PixFmt::BGR8);
   overlayShot(("ingame_caught" + sfx).c_str(), {caught}, 1.0, "", Tone::Info, false, PixFmt::BGR8);
+  overlayShot(("ingame_badge" + sfx).c_str(), {badge}, 1.0, "", Tone::Info, false, PixFmt::BGR8);
+  overlayShot(("ingame_evolved" + sfx).c_str(), {evolved}, 1.0, "", Tone::Info, false, PixFmt::RGB565);
+  overlayShot(("ingame_trophy" + sfx).c_str(), {trophyEvent(*trophyById("firstCatch"))}, 1.0, "", Tone::Info, false, PixFmt::BGR8);
   overlayShot(("ingame_quiet" + sfx).c_str(), {}, 0, "", Tone::Info, false, PixFmt::BGR8);
   // the fade-in, frame by frame
   overlayShot(("ingame_toast_fadein" + sfx).c_str(), {newArea}, 0.11, "", Tone::Info, false, PixFmt::BGR8);
 
-  // in game: souldew's screens over the paused game (top: dimmed game + header + team; bottom: the tabs)
+  // in game: souldew's screens over the paused game (top: header + team; bottom: the tabs)
   {
     ctx.inGame = true;
     std::vector<Mon> party;
@@ -316,27 +458,20 @@ int main(int argc, char **argv) {
     ctx.party = &party;
     ctx.area = "Route 7";
     ctx.loc = locId("Route 7");
+    RunView iv;
     for (int t = 0; t < 4; t++) {
-      view.tab = t;
-      view.drawTop(top, ctx);
-      view.drawBottom(bottom, ctx);
+      iv.tab = t;
+      iv.drawTop(top, ctx);
+      iv.drawBottom(bottom, ctx);
       save3ds(std::string("ingame_souldew_") + tabs[t] + sfx, top, bottom);
     }
     // an open encounter being confirmed (party was full)
-    view.tab = 1;
-    Input in;
-    view.drawBottom(bottom, ctx);
-    in.touchDown = true;
-    in.tx = 150;
-    in.ty = 36;
-    view.handle(in, ctx, 0);
-    in = Input();
-    in.touchUp = true;
-    in.tx = 150;
-    in.ty = 36;
-    view.handle(in, ctx, 0);
-    view.drawTop(top, ctx);
-    view.drawBottom(bottom, ctx);
+    iv.tab = 1;
+    iv.drawBottom(bottom, ctx);
+    iv.handle(tap(150, 54, true), ctx, 0);
+    iv.handle(tap(150, 54, false), ctx, 0);
+    iv.drawTop(top, ctx);
+    iv.drawBottom(bottom, ctx);
     save3ds("ingame_souldew_confirm" + sfx, top, bottom);
   }
   return 0;

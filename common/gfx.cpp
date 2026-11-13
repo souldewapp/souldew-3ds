@@ -32,10 +32,18 @@ void Canvas::clear(Color c) {
 }
 
 // "over" compositing with straight alpha (the destination may be transparent: the overlay canvas)
+static inline int div255(int x) { return (x + 1 + (x >> 8)) >> 8; }  // x / 255 for 0 ≤ x ≤ 65535, no divide
+
 static inline uint32_t over(uint32_t d, Color c, int cover) {
-  int sa = c.a * cover / 255;
+  int sa = div255(c.a * cover);
   if (sa <= 0) return d;
   int da = d >> 24;
+  if (da == 255 && sa < 255) {
+    // the common case (an opaque canvas): no division at all
+    int ia = 255 - sa;
+    int r = div255(c.r * sa + ((d >> 16) & 0xff) * ia), g = div255(c.g * sa + ((d >> 8) & 0xff) * ia), b = div255(c.b * sa + (d & 0xff) * ia);
+    return 0xff000000u | ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b;
+  }
   if (sa >= 255 || da == 0) {
     if (sa >= 255) return 0xff000000u | ((uint32_t)c.r << 16) | ((uint32_t)c.g << 8) | c.b;
     return ((uint32_t)sa << 24) | ((uint32_t)c.r << 16) | ((uint32_t)c.g << 8) | c.b;
@@ -132,6 +140,100 @@ void Canvas::roundRectGradient(int x, int y, int w, int h, int r, Color left, Co
   }
 }
 
+void Canvas::roundRectVGradient(int x, int y, int w, int h, int r, Color top, Color bottom) {
+  if (w <= 0 || h <= 0) return;
+  r = std::max(0, std::min(r, std::min(w, h) / 2));
+  for (int yy = y; yy < y + h; yy++) {
+    Color c = mix(top, bottom, h > 1 ? (float)(yy - y) / (h - 1) : 0);
+    if (yy >= y + r && yy < y + h - r) {
+      fill(x, yy, w, 1, c);
+      continue;
+    }
+    for (int xx = x; xx < x + r; xx++) {
+      int cov = coverage(xx, yy, x, y, w, h, r);
+      if (cov) blendPixel(xx, yy, c, cov);
+    }
+    fill(x + r, yy, w - 2 * r, 1, c);
+    for (int xx = x + w - r; xx < x + w; xx++) {
+      int cov = coverage(xx, yy, x, y, w, h, r);
+      if (cov) blendPixel(xx, yy, c, cov);
+    }
+  }
+}
+
+void Canvas::glow(int cx, int cy, int rx, int ry, Color c) {
+  if (rx <= 0 || ry <= 0 || !c.a) return;
+  int x0 = std::max(clip_.x, cx - rx), x1 = std::min(clip_.x + clip_.w, cx + rx);
+  int y0 = std::max(clip_.y, cy - ry), y1 = std::min(clip_.y + clip_.h, cy + ry);
+  if (x0 >= x1 || y0 >= y1) return;
+  // d = (dx/rx)² + (dy/ry)² in 1/4096 steps, per column once (the ARM11 has no divide instruction)
+  static int tx[512];
+  int n = std::min(512, x1 - x0);
+  for (int i = 0; i < n; i++) {
+    int dx = x0 + i - cx;
+    tx[i] = (dx * dx * 4096) / (rx * rx);
+  }
+  for (int yy = y0; yy < y1; yy++) {
+    int dy = yy - cy;
+    int ty = (dy * dy * 4096) / (ry * ry);
+    if (ty >= 4096) continue;
+    uint32_t *row = px_ + yy * w_ + x0;
+    for (int i = 0; i < n; i++) {
+      int d = ty + tx[i];
+      if (d >= 4096) continue;
+      int k = 4096 - d;                 // 0..4096
+      int cover = (k * k) >> 16;        // 0..256 (quadratic)
+      if (cover > 255) cover = 255;
+      if (cover) row[i] = over(row[i], c, cover);
+    }
+  }
+}
+
+void Canvas::shadow(int x, int y, int w, int h, int r, int spread, int dy, uint8_t alpha) {
+  // stacked rounded rects, each a little larger and fainter: a cheap blur
+  for (int i = spread; i >= 1; i--) {
+    uint8_t a = (uint8_t)(alpha * (spread - i + 1) / (spread * (spread + 1) / 2 + 1));
+    roundRect(x - i, y - i + dy, w + 2 * i, h + 2 * i, r + i, Color(0, 0, 0, a));
+  }
+}
+
+void Canvas::dashedRoundRect(int x, int y, int w, int h, int r, Color c, int dash) {
+  // corners solid (anti-aliased), the straight edges dashed
+  Rect old = clip_;
+  auto corner = [&](int cx, int cy) {
+    Rect cr{cx, cy, r, r};
+    int x0 = std::max(old.x, cr.x), y0 = std::max(old.y, cr.y);
+    int x1 = std::min(old.x + old.w, cr.x + cr.w), y1 = std::min(old.y + old.h, cr.y + cr.h);
+    clip_ = {x0, y0, std::max(0, x1 - x0), std::max(0, y1 - y0)};
+    roundRectStroke(x, y, w, h, r, 1, c);
+    clip_ = old;
+  };
+  corner(x, y);
+  corner(x + w - r, y);
+  corner(x, y + h - r);
+  corner(x + w - r, y + h - r);
+  for (int xx = x + r; xx < x + w - r; xx++)
+    if (((xx - x - r) / dash) % 2 == 0) {
+      blendPixel(xx, y, c);
+      blendPixel(xx, y + h - 1, c);
+    }
+  for (int yy = y + r; yy < y + h - r; yy++)
+    if (((yy - y - r) / dash) % 2 == 0) {
+      blendPixel(x, yy, c);
+      blendPixel(x + w - 1, yy, c);
+    }
+}
+
+void Canvas::pixelArt(int x, int y, const char *const *rows, int nrows, int scale, Color (*palette)(char, void *), void *ud) {
+  for (int j = 0; j < nrows; j++)
+    for (int i = 0; rows[j][i]; i++) {
+      char ch = rows[j][i];
+      if (ch == '.' || ch == ' ') continue;
+      Color c = palette(ch, ud);
+      if (c.a) fill(x + i * scale, y + j * scale, scale, scale, c);
+    }
+}
+
 void Canvas::circle(int cx, int cy, int r, Color c) { roundRect(cx - r, cy - r, 2 * r, 2 * r, r, c); }
 
 void Canvas::card(int x, int y, int w, int h, int r, Color fillC, Color edge, Color accent, int accentW) {
@@ -180,6 +282,8 @@ static const Glyph *glyphOrFallback(const Font &f, uint32_t cp) {
   // fallbacks for characters a font lacks
   switch (cp) {
     case 0x2026: return findGlyph(f, '.');
+    case 0x203A: return findGlyph(f, '>');
+    case 0x2192: return findGlyph(f, '>');
     case 0x2013: case 0x2014: return findGlyph(f, '-');
     case 0x2018: case 0x2019: return findGlyph(f, '\'');
     case 0x201C: case 0x201D: return findGlyph(f, '"');
@@ -277,6 +381,21 @@ int Canvas::textWrapped(const Font &f, int x, int y, int w, const std::string &s
     while (pos < s.size() && (s[pos] == ' ' || s[pos] == '\n')) pos++;
   }
   return lines * lh;
+}
+
+void Canvas::drawRegion(const Canvas &src, Rect r) {
+  int x0 = std::max(0, r.x), y0 = std::max(0, r.y);
+  int x1 = std::min(std::min(w_, src.w_), r.x + r.w), y1 = std::min(std::min(h_, src.h_), r.y + r.h);
+  for (int y = y0; y < y1; y++)
+    for (int x = x0; x < x1; x++) {
+      uint32_t p = src.px_[y * src.w_ + x];
+      if (!(p >> 24)) continue;
+      blendPixel(x, y, Color((p >> 16) & 0xff, (p >> 8) & 0xff, p & 0xff, p >> 24));
+    }
+}
+
+void Canvas::copyFrom(const Canvas &src) {
+  if (src.w_ == w_ && src.h_ == h_) std::memcpy(px_, src.px_, sizeof(uint32_t) * (size_t)w_ * h_);
 }
 
 void Canvas::draw(const Canvas &src, int dx, int dy) {
