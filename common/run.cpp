@@ -1,5 +1,6 @@
 #include "run.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
 #include "games.h"
@@ -100,6 +101,29 @@ void Run::addLog(long long ts, const char *kind, const std::string &text) {
   if (log.size() > 80) log.erase(log.begin(), log.begin() + (log.size() - 80));
 }
 
+void Run::end(const std::string &st, long long now) {
+  if (status == st) return;
+  status = st;
+  stats.endedAt = st == "active" ? 0 : now;
+  updated = now;
+}
+
+bool Profile::has(const std::string &id) const {
+  for (auto &t : trophies)
+    if (t.first == id) return true;
+  return false;
+}
+long long Profile::when(const std::string &id) const {
+  for (auto &t : trophies)
+    if (t.first == id) return t.second;
+  return 0;
+}
+void Profile::addDex(int species) {
+  if (species <= 0) return;
+  auto it = std::lower_bound(dex.begin(), dex.end(), species);
+  if (it == dex.end() || *it != species) dex.insert(it, species);
+}
+
 Run *RunStore::byId(const std::string &id) {
   for (auto &r : runs)
     if (r.id == id) return &r;
@@ -119,6 +143,7 @@ Run &RunStore::create(const std::string &name, const std::string &game, const Ru
   r.created = r.updated = now;
   runs.push_back(r);
   active = runs.back().id;
+  profile.runsCreated++;
   return runs.back();
 }
 
@@ -174,7 +199,17 @@ Json RunStore::toJson() const {
   s.set("lang", settings.lang);
   s.set("overlays", settings.overlays);
   s.set("tab", settings.tab);
+  s.set("onboarded", settings.onboarded);
   root.set("settings", s);
+  Json pr = Json::object();
+  Json tro = Json::object();
+  for (auto &t : profile.trophies) tro.set(t.first.c_str(), t.second);
+  pr.set("trophies", tro);
+  Json dex = Json::array();
+  for (int d : profile.dex) dex.push(d);
+  pr.set("dex", dex);
+  pr.set("runsCreated", profile.runsCreated);
+  root.set("profile", pr);
   Json arr = Json::array();
   for (auto &r : runs) {
     Json j = Json::object();
@@ -190,6 +225,17 @@ Json RunStore::toJson() const {
     j.set("milestone", r.milestone);
     j.set("playMinutes", r.playMinutes);
     j.set("lastArea", r.lastArea);
+    Json stt = Json::object();
+    Json ba = Json::array();
+    for (long long b : r.stats.badgeAt) ba.push(b);
+    stt.set("badgeAt", ba);
+    stt.set("evolutions", r.stats.evolutions);
+    stt.set("oneHp", r.stats.oneHp);
+    stt.set("underdog", r.stats.underdog);
+    stt.set("capBreaks", r.stats.capBreaks);
+    stt.set("monotypeAt", r.stats.monotypeAt);
+    stt.set("endedAt", r.stats.endedAt);
+    j.set("stats", stt);
     Json enc = Json::array();
     for (auto &e : r.encounters) {
       Json x = Json::object();
@@ -209,6 +255,7 @@ Json RunStore::toJson() const {
       Json x = Json::object();
       x.set("key", m.key);
       x.set("species", m.species);
+      if (m.firstSpecies && m.firstSpecies != m.species) x.set("first", m.firstSpecies);
       x.set("nickname", m.nickname);
       x.set("level", m.level);
       x.set("metLevel", m.metLevel);
@@ -223,6 +270,11 @@ Json RunStore::toJson() const {
         x.set("cause", m.cause);
         x.set("deathArea", m.deathArea);
         x.set("deathTs", m.deathTs);
+        if (m.killer) {
+          x.set("killer", m.killer);
+          x.set("killerLevel", m.killerLevel);
+          x.set("killerTrainer", m.killerTrainer);
+        }
       }
       x.set("inParty", m.inParty);
       x.set("partySlot", m.partySlot);
@@ -252,6 +304,14 @@ RunStore RunStore::fromJson(const Json &root) {
   st.settings.lang = s["lang"].asString("de");
   st.settings.overlays = s["overlays"].asBool(true);
   st.settings.tab = s["tab"].asBool(true);
+  // a file from before the introduction existed: whoever has runs has seen souldew already
+  st.settings.onboarded = s["onboarded"].asBool(root["runs"].size() > 0);
+  const Json &pr = root["profile"];
+  const Json &tro = pr["trophies"];
+  for (auto &kv : tro.items()) st.profile.trophies.push_back({kv.first, kv.second.asInt64()});
+  const Json &dex = pr["dex"];
+  for (size_t i = 0; i < dex.size(); i++) st.profile.addDex(dex.at(i).asInt());
+  st.profile.runsCreated = pr["runsCreated"].asInt(0);
   const Json &runs = root["runs"];
   for (size_t i = 0; i < runs.size(); i++) {
     const Json &j = runs.at(i);
@@ -269,6 +329,15 @@ RunStore RunStore::fromJson(const Json &root) {
     r.milestone = j["milestone"].asInt();
     r.playMinutes = j["playMinutes"].asInt();
     r.lastArea = j["lastArea"].asString();
+    const Json &stt = j["stats"];
+    const Json &ba = stt["badgeAt"];
+    for (size_t k = 0; k < ba.size(); k++) r.stats.badgeAt.push_back(ba.at(k).asInt64());
+    r.stats.evolutions = stt["evolutions"].asInt();
+    r.stats.oneHp = stt["oneHp"].asInt();
+    r.stats.underdog = stt["underdog"].asInt();
+    r.stats.capBreaks = stt["capBreaks"].asInt();
+    r.stats.monotypeAt = stt["monotypeAt"].asInt64();
+    r.stats.endedAt = stt["endedAt"].asInt64();
     const Json &enc = j["encounters"];
     for (size_t k = 0; k < enc.size(); k++) {
       const Json &x = enc.at(k);
@@ -289,6 +358,7 @@ RunStore RunStore::fromJson(const Json &root) {
       RunMon m;
       m.key = x["key"].asString();
       m.species = x["species"].asInt();
+      m.firstSpecies = x["first"].asInt(m.species);
       m.nickname = x["nickname"].asString();
       m.level = x["level"].asInt();
       m.metLevel = x["metLevel"].asInt();
@@ -303,6 +373,9 @@ RunStore RunStore::fromJson(const Json &root) {
       m.cause = x["cause"].asString();
       m.deathArea = x["deathArea"].asString();
       m.deathTs = x["deathTs"].asInt64();
+      m.killer = x["killer"].asInt();
+      m.killerLevel = x["killerLevel"].asInt();
+      m.killerTrainer = x["killerTrainer"].asBool();
       m.inParty = x["inParty"].asBool();
       m.partySlot = x["partySlot"].asInt(-1);
       r.mons.push_back(m);
@@ -314,6 +387,7 @@ RunStore RunStore::fromJson(const Json &root) {
     }
     st.runs.push_back(r);
   }
+  if (st.profile.runsCreated < (int)st.runs.size()) st.profile.runsCreated = (int)st.runs.size();
   if (!st.byId(st.active)) st.active = st.runs.empty() ? "" : st.runs.back().id;
   return st;
 }

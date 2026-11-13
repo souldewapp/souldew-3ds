@@ -39,6 +39,7 @@ RunMon &Engine::addMon(const Mon &m, long long now) {
   RunMon r;
   r.key = m.key;
   r.species = m.species;
+  r.firstSpecies = m.species;
   r.nickname = m.nickname;
   r.level = m.level;
   r.metLevel = m.metLevel;
@@ -130,7 +131,7 @@ void Engine::newMembers(const LiveFrame &f, long long now, std::vector<Event> &e
   }
 }
 
-void Engine::syncParty(const LiveFrame &f) {
+void Engine::syncParty(const LiveFrame &f, long long now, std::vector<Event> &ev) {
   for (auto &rm : run_.mons) {
     rm.inParty = false;
     rm.partySlot = -1;
@@ -146,7 +147,36 @@ void Engine::syncParty(const LiveFrame &f) {
     r->hp = m.hp;
     r->maxHp = m.maxHp;
     r->nickname = m.nickname;
-    r->species = m.species;  // evolutions
+    if (r->species != m.species && r->species > 0 && m.species > 0 && !m.isEgg && !r->dead) {
+      // an evolution (the same Pokémon, a new species)
+      std::string from = speciesName(r->species, g_lang), to = speciesName(m.species, g_lang);
+      run_.stats.evolutions++;
+      run_.addLog(now, "evolve", fmt("%s \xe2\x86\x92 %s", from.c_str(), to.c_str()));
+      ev.push_back({EventKind::Evolved, Tone::Ok, fmt(tr("%s hat sich entwickelt", "%s evolved"), monName(m).c_str()),
+                    fmt("%s \xe2\x86\x92 %s", from.c_str(), to.c_str()), m.species});
+    }
+    r->species = m.species;
+    // moments for the achievements: exactly 1 HP left
+    if (m.hp == 1 && m.maxHp > 1) {
+      bool before = false;
+      for (auto &o : last_.party)
+        if (o.key == m.key && o.hp == 1) before = true;
+      if (!before && !initial_) run_.stats.oneHp++;
+    }
+  }
+  // a full team of six sharing a type
+  if (!run_.stats.monotypeAt && f.party.size() == 6) {
+    for (int k = 0; k < 2; k++) {
+      int t = speciesType(f.party[0].species, k);
+      if (t < 0) continue;
+      bool all = true;
+      for (auto &m : f.party) all = all && !m.isEgg && (speciesType(m.species, 0) == t || speciesType(m.species, 1) == t);
+      if (all) {
+        run_.stats.monotypeAt = now;
+        dirty_ = true;
+        break;
+      }
+    }
   }
 }
 
@@ -171,10 +201,16 @@ void Engine::deaths(const LiveFrame &f, long long now, std::vector<Event> &ev) {
             (f.battle.trainer ? tr(" (Trainer)", " (trainer)") : "");
   else if (last_.battle.inBattle)
     cause = fmt("%s Lv %d", spName(last_.battle.enemySpecies).c_str(), last_.battle.enemyLevel);
+  const BattleRead &foe = f.battle.inBattle ? f.battle : last_.battle;
   auto kill = [&](RunMon &r, const Mon *m) {
     if (r.dead) return;
     setDead(run_, r, true, cause, now);
     r.deathArea = area_;
+    if (!cause.empty() && foe.enemySpecies > 0) {
+      r.killer = foe.enemySpecies;
+      r.killerLevel = foe.enemyLevel;
+      r.killerTrainer = foe.trainer;
+    }
     dirty_ = true;
     std::string name = m ? monName(*m) : r.nickname;
     ev.push_back({EventKind::Death, Tone::Danger, fmt(tr("%s ist gefallen", "%s has fainted"), name.c_str()),
@@ -182,7 +218,7 @@ void Engine::deaths(const LiveFrame &f, long long now, std::vector<Event> &ev) {
                                 : fmt(tr("gegen %s \xc2\xb7 in die Box", "vs %s \xc2\xb7 box it"), cause.c_str()),
                   r.species});
     if (run_.rules.deathless && run_.status == "active") {
-      run_.status = "lost";
+      run_.end("lost", now);
       run_.addLog(now, "run", tr("Deathless: der Lauf ist vorbei", "Deathless: the run is over"));
       ev.push_back({EventKind::RunLost, Tone::Danger, tr("Lauf verloren", "Run lost"), tr("Deathless-Regel: der erste Tod beendet ihn", "Deathless rule: the first death ends it")});
     }
@@ -206,7 +242,7 @@ void Engine::deaths(const LiveFrame &f, long long now, std::vector<Event> &ev) {
   if (allDown && !whiteout_) {
     whiteout_ = true;
     if (run_.rules.blackout == "party" && run_.status == "active") {
-      run_.status = "lost";
+      run_.end("lost", now);
       run_.addLog(now, "run", tr("Blackout: der Lauf ist vorbei", "Whiteout: the run is over"));
       ev.push_back({EventKind::Whiteout, Tone::Danger, tr("Blackout \xe2\x80\x93 Lauf verloren", "Whiteout \xe2\x80\x93 run lost"),
                     tr("Das ganze Team ist gefallen", "The whole team fainted")});
@@ -294,10 +330,12 @@ void Engine::caps(const LiveFrame &f, long long now, std::vector<Event> &ev, boo
   std::string boss;
   int cap = run_.levelCap(&boss);
   if (!cap) return;
+  bool broke = false;
   for (auto &m : f.party) {
     if (m.isEgg || m.level <= cap) continue;
     RunMon *r = run_.mon(m.key);
     if (r && r->dead) continue;
+    broke = true;
     std::string tag = m.key + "@" + std::to_string(m.level) + (trainerStart ? "t" : "");
     if (std::find(capWarned_.begin(), capWarned_.end(), tag) != capWarned_.end()) continue;
     capWarned_.push_back(tag);
@@ -309,6 +347,7 @@ void Engine::caps(const LiveFrame &f, long long now, std::vector<Event> &ev, boo
                   m.species});
     run_.addLog(now, "cap", fmt("%s Lv %d > %d", monName(m).c_str(), m.level, cap));
   }
+  if (broke && trainerStart) run_.stats.capBreaks++;
 }
 
 void Engine::resolve(Run &run, Encounter &e, const std::string &status, long long now) {
@@ -321,7 +360,7 @@ void Engine::resolve(Run &run, Encounter &e, const std::string &status, long lon
     // a catch the party never showed (the box): a run Pokémon without memory data
     RunMon m;
     m.key = fmt("box-%lld-%d", now, e.species);
-    m.species = e.species;
+    m.species = m.firstSpecies = e.species;
     m.level = m.metLevel = e.level;
     m.loc = e.loc;
     m.area = e.area;
@@ -336,6 +375,7 @@ std::vector<Event> Engine::update(const LiveFrame &f, long long now) {
     last_.battle = f.battle;
     return ev;
   }
+  initial_ = first_;
   if (first_) {
     first_ = false;
     if (run_.mons.empty() && run_.encounters.empty()) adoptStarters(f, now, ev);
@@ -344,6 +384,15 @@ std::vector<Event> Engine::update(const LiveFrame &f, long long now) {
   }
   if (f.badges >= 0 && g_.caps.fromBadges && f.badges != run_.badges) {
     bool up = f.badges > run_.badges;
+    if (up && !initial_) {
+      // underdog: the strongest Pokémon still below the ace of the leader just beaten
+      int capBefore = run_.levelCap(), top = 0;
+      for (auto &m : f.party)
+        if (!m.isEgg && m.hp > 0) top = std::max(top, m.level);
+      if (capBefore && top && top < capBefore) run_.stats.underdog++;
+    }
+    while ((int)run_.stats.badgeAt.size() < f.badges) run_.stats.badgeAt.push_back(now);
+    if ((int)run_.stats.badgeAt.size() > f.badges) run_.stats.badgeAt.resize(f.badges);
     run_.badges = f.badges;
     dirty_ = true;
     if (up) {
@@ -357,7 +406,7 @@ std::vector<Event> Engine::update(const LiveFrame &f, long long now) {
   areaChange(f, now, ev);
   battle(f, now, ev);
   newMembers(f, now, ev);
-  syncParty(f);
+  syncParty(f, now, ev);
   deaths(f, now, ev);
   if (!f.battle.inBattle) caps(f, now, ev, false);
   if (pendingMiss_ && battleEnd_ && now - battleEnd_ > 90 && f.party.size() < 6) {

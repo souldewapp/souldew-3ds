@@ -24,6 +24,8 @@ enum class EventKind {
   OverCap,
   Badge,
   RunLost,
+  Evolved,
+  Trophy,           // an achievement unlocked (common/trophies.cpp)
   Info,
 };
 
@@ -32,6 +34,8 @@ struct Event {
   Tone tone;
   std::string title, sub;
   int species = 0;  // shown as a tile
+  int rarity = 0;   // Trophy: 0 common … 4 legendary (the coin's metal)
+  int cat = 0;      // Trophy: category (the coin's emblem)
 };
 
 struct LiveFrame {
@@ -62,6 +66,7 @@ class Engine {
   const GameInfo &g_;
   LiveFrame last_;
   bool first_ = true;
+  bool initial_ = false;  // this update is the first one (what the game already shows isn't a new moment)
   bool dirty_ = false;
   bool wasInBattle_ = false;
   std::string area_;
@@ -76,7 +81,7 @@ class Engine {
 
   void adoptStarters(const LiveFrame &f, long long now, std::vector<Event> &ev);
   void newMembers(const LiveFrame &f, long long now, std::vector<Event> &ev);
-  void syncParty(const LiveFrame &f);
+  void syncParty(const LiveFrame &f, long long now, std::vector<Event> &ev);
   void deaths(const LiveFrame &f, long long now, std::vector<Event> &ev);
   void areaChange(const LiveFrame &f, long long now, std::vector<Event> &ev);
   void battle(const LiveFrame &f, long long now, std::vector<Event> &ev);

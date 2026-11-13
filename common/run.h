@@ -39,6 +39,7 @@ struct Encounter {
 struct RunMon {
   std::string key;
   int species = 0;
+  int firstSpecies = 0;   // what it was caught as (evolutions change `species`)
   std::string nickname;
   int level = 0, metLevel = 0, hp = 0, maxHp = 0;
   int loc = 0;
@@ -47,6 +48,8 @@ struct RunMon {
   bool shiny = false;
   bool dead = false;
   std::string cause;      // "Wurmple Lv 3" / "Kampf gegen Trainer" / "manuell"
+  int killer = 0, killerLevel = 0;  // the Pokémon that knocked it out (0: unknown / by hand)
+  bool killerTrainer = false;
   std::string deathArea;
   long long deathTs = 0;
   bool inParty = false;
@@ -57,6 +60,17 @@ struct LogEntry {
   long long ts = 0;
   std::string kind;  // area | encounter | caught | missed | dupe | death | cap | badge | run
   std::string text;
+};
+
+// what the achievements need beyond encounters and Pokémon: moments the engine saw while the game ran
+struct RunStats {
+  std::vector<long long> badgeAt;  // when badge (Gen 7: grand trial) n+1 was earned
+  int evolutions = 0;
+  int oneHp = 0;          // a Pokémon of the team stood at exactly 1 HP
+  int underdog = 0;       // a badge earned while the strongest Pokémon was below the leader's ace
+  int capBreaks = 0;      // a trainer battle started with a Pokémon over the level cap
+  long long monotypeAt = 0;  // a full team of six sharing one type
+  long long endedAt = 0;     // won / lost
 };
 
 struct Run {
@@ -72,6 +86,7 @@ struct Run {
   std::vector<Encounter> encounters;
   std::vector<RunMon> mons;
   std::vector<LogEntry> log;
+  RunStats stats;
 
   // derived
   const Encounter *encounterFor(const std::string &area) const;  // the area's counting encounter (not dupe)
@@ -82,12 +97,24 @@ struct Run {
   int levelCap(std::string *boss = nullptr) const;  // 0 = no cap (rule off / unknown game)
   int progress() const;  // badges or milestone
   void addLog(long long ts, const char *kind, const std::string &text);
+  void end(const std::string &status, long long now);  // "won" | "lost" | "active" (reopen)
 };
 
 struct Settings {
   std::string lang = "de";
   bool overlays = true;
   bool tab = true;  // the small souldew tab on the bottom screen
+  bool onboarded = false;  // the first-launch introduction was shown
+};
+
+// across runs: the achievements reached (kept even when a run is deleted), the species ever owned, runs started
+struct Profile {
+  std::vector<std::pair<std::string, long long>> trophies;  // id → when
+  std::vector<int> dex;  // sorted species ids
+  int runsCreated = 0;
+  bool has(const std::string &id) const;
+  long long when(const std::string &id) const;
+  void addDex(int species);
 };
 
 struct RunStore {
@@ -95,6 +122,7 @@ struct RunStore {
   std::string active;
   std::vector<Run> runs;
   Settings settings;
+  Profile profile;
 
   Run *activeRun();
   Run *byId(const std::string &id);
