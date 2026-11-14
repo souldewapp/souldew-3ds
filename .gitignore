@@ -9,3 +9,7 @@ mockgame/build/
 *.3gx
 *.cxi
 .DS_Store
+launcher/romfs/
+*.cia
+*.bnr
+*.t3x

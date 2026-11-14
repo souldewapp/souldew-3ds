@@ -9,7 +9,7 @@
 
 namespace sd {
 
-constexpr const char *kVersion = "1.1";
+constexpr const char *kVersion = "0.9.0-beta.1";  // the one version number: build.sh reads it for the .cia, the zip and the UniStore
 
 struct InstalledGame {
   const GameInfo *game = nullptr;

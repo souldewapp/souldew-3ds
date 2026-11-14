@@ -3,6 +3,10 @@
 
   python3 tools/emu_test.py plugin   <Azahar.app>   # the mock game + souldew-test.3gx (plugin loader on)
   python3 tools/emu_test.py launcher <Azahar.app>   # the launcher's demo build with a sample run file
+  python3 tools/emu_test.py cia      <Azahar.app>   # the .cia's program (build/souldew-cia.cxi) on an empty SD card
+
+The launcher modes start without the plugin on the SD card and check afterwards that the launcher installed it from
+its RomFS (sdmc:/3ds/souldew/souldew.3gx, byte for byte plugin/souldew.3gx).
 
 Azahar runs in portable mode: a `user/` folder next to Azahar.app holds its settings and virtual SD card, so the
 person's own Azahar setup is never touched. Sound output is set to "null" and volume 0 (silent). Screenshots land in
@@ -205,7 +209,7 @@ def main():
         shutil.copy(path, os.path.join(ROOT, 'build', 'emu_plugin_runs.json'))
     elif mode == 'launcher':
         sample = os.path.join(ROOT, 'build', 'host', 'sample_runs.json')
-        setup(app, {'souldew/runs.json': sample, '3ds/souldew/souldew.3gx': os.path.join(ROOT, 'plugin', 'souldew.3gx')})
+        user = setup(app, {'souldew/runs.json': sample})
         # the demo build presses its own buttons (launcher/source/main.cpp, SOULDEW_DEMO): shots between the steps
         shots = [(2.2, 'launcher_intro_1'), (4.3, 'launcher_intro_2'), (6.3, 'launcher_intro_3'), (8.3, 'launcher_intro_4'),
                  (10.3, 'launcher_intro_5'), (12.9, 'launcher_menu'), (16.2, 'launcher_runs'), (18.6, 'launcher_run_team'),
@@ -214,8 +218,29 @@ def main():
                  (40.9, 'launcher_settings'), (43.6, 'launcher_settings_overlays'), (47.6, 'launcher_new_game'),
                  (50.4, 'launcher_new_rules'), (53.6, 'launcher_new_name'), (57.6, 'launcher_menu_end')]
         run(app, os.path.join(ROOT, 'launcher', 'souldew-demo.3dsx'), shots, 59)
+        check_plugin_installed(user)
+    elif mode == 'cia':
+        # the program inside souldew.cia (its NCCH, extracted by build.sh), first start: the introduction
+        user = setup(app, {})
+        rom = os.path.join(ROOT, 'build', 'souldew-cia.cxi')
+        shots = [(3.0, 'cia_intro')]
+        run(app, rom, shots, 7)
+        check_plugin_installed(user)
     else:
-        sys.exit('mode: plugin | launcher')
+        sys.exit('mode: plugin | launcher | cia')
+
+
+def check_plugin_installed(user):
+    got = os.path.join(user, 'sdmc', '3ds', 'souldew', 'souldew.3gx')
+    want = os.path.join(ROOT, 'plugin', 'souldew.3gx')
+    if not os.path.exists(got):
+        print('PLUGIN NOT INSTALLED: sdmc:/3ds/souldew/souldew.3gx is missing')
+        sys.exit(1)
+    same = open(got, 'rb').read() == open(want, 'rb').read()
+    print('plugin installed by the launcher: sdmc:/3ds/souldew/souldew.3gx, %d bytes, %s' %
+          (os.path.getsize(got), 'identical to plugin/souldew.3gx' if same else 'DIFFERENT from plugin/souldew.3gx'))
+    if not same:
+        sys.exit(1)
 
 
 if __name__ == '__main__':

@@ -25,20 +25,27 @@ The launcher and the plugin share the runs, the settings and the achievements in
 ![Title menu](docs/screenshots/launcher_menu.png) ![A run](docs/screenshots/launcher_run_team.png)
 ![Achievements](docs/screenshots/launcher_trophies.png) ![In game](docs/screenshots/ingame_first_encounter.png)
 
-## Install (SD card)
+## Install
 
-Needs Luma3DS **v13 or newer** (it has the plugin loader built in) and the Homebrew Launcher.
+Beta testers: **docs/TESTERS.md** (Universal-Updater QR code, FBI QR code or the SD card zip). Publishing a beta:
+**docs/RELEASING.md**.
+
+Needs Luma3DS **v13 or newer** (it has the plugin loader built in).
 
 | File | Where on the SD card |
 | --- | --- |
-| `souldew.3dsx` | `/3ds/souldew/souldew.3dsx` |
+| `souldew.cia` | installed with FBI / Universal-Updater → HOME menu icon (title ID `000400000F5D3D00`) |
+| `souldew.3dsx` | `/3ds/souldew/souldew.3dsx` (Homebrew Launcher – the same app) |
 | `souldew.3gx` | `/3ds/souldew/souldew.3gx` |
 
-`./build.sh` puts both in `dist/sd/` with that layout – copy the contents of `dist/sd/` to the SD card's root.
+The plugin also travels inside the app (RomFS of the `.cia` and the `.3dsx`): on every start the launcher writes it
+to `/3ds/souldew/souldew.3gx` when that file is missing or differs, so the `.cia` or the `.3dsx` alone is a complete
+install. `./build.sh` puts the SD card layout in `dist/sd/` (copy its contents to the SD card's root) and the beta
+release files in `dist/release/`.
 
-1. Turn the plugin loader on once: open the Rosalina menu (**L + D-pad down + SELECT**) › *Plugin Loader: Enabled*
+1. Turn the plugin loader on once: open the Rosalina menu (**L + D-pad down + SELECT**) › *Plugin Loader: [Enabled]*
    (the launcher also offers to switch it on when you start a game).
-2. Start *souldew* in the Homebrew Launcher, create a run, press *Start game*. The launcher tells Luma to load
+2. Start *souldew* (HOME menu or Homebrew Launcher), create a run, press *Start game*. The launcher tells Luma to load
    `/3ds/souldew/souldew.3gx` for that game and starts it.
 
 Without the launcher: put `souldew.3gx` into `/luma/plugins/<title ID>/` (`dist/sd-alternative/` has all eight
@@ -62,15 +69,21 @@ Don't use both ways at once for the same game.
 ```
 
 The toolchain image (`docker/Dockerfile`): devkitARM/libctru (pinned by digest), libctrpf (CTRPluginFramework),
-3gxtool and makerom built from pinned sources. Outputs:
+3gxtool, makerom, ctrtool and bannertool built from pinned sources. Outputs:
 
-- `launcher/souldew.3dsx`, `plugin/souldew.3gx` – the release files
+- `launcher/souldew.3dsx`, `launcher/souldew.cia`, `plugin/souldew.3gx` – the release files (version: `kVersion` in
+  `common/screens.h`; the `.cia`'s banner and jingle come from `tools/gen_cia_assets.py` → `launcher/cia/`, its
+  makerom settings are `launcher/cia/souldew.rsf`)
+- `dist/release/` – the beta's upload set (`.cia`, `.3dsx`, `.3gx`, `souldew.unistore`, `souldew.t3x`, the SD card
+  zip), `dist/qr/` – the QR codes (`tools/make_release.py`, see docs/RELEASING.md); `build/cia_info.txt` – ctrtool's
+  view of the `.cia`
 - `launcher/souldew-demo.3dsx` – the launcher pressing its own buttons (emulator screenshots)
 - `plugin/souldew-test.3gx` + `mockgame/souldew-mock.cxi` – the plugin's end-to-end test without any game (below)
 - `docs/screenshots/*.png` – every screen in German and English (`*_en.png`), rendered on the computer by the same
   drawing code the console runs (`docs/screenshots/before/`: a few screens before the redesign of 13 Nov 2026)
 
-Generated sources are committed; regenerate them with `tools/gen_fonts.py` (fonts, needs Pillow),
+Generated sources are committed; regenerate them with `tools/gen_fonts.py` (fonts, needs Pillow), `tools/gen_icon.py`
+/ `tools/gen_cia_assets.py` (icon, the `.cia`'s banner + jingle, Pillow),
 `tools/gen_data.mjs <souldew>/native/shared/data` (names, types, locations) and `tools/gen_mock_romfs.py`.
 
 ## Test
@@ -86,7 +99,10 @@ Generated sources are committed; regenerate them with `tools/gen_fonts.py` (font
   `docs/screenshots/emu_plugin_*.png`.
 - `python3 tools/emu_test.py launcher <Azahar.app>` runs the launcher's demo build: it presses its own buttons through
   the introduction, the menu, a run's tabs, the achievements, the settings and the new-run wizard
-  (`docs/screenshots/emu_launcher_*.png`).
+  (`docs/screenshots/emu_launcher_*.png`). It starts without the plugin on the SD card and checks that the launcher
+  installed it from its RomFS.
+- `python3 tools/emu_test.py cia <Azahar.app>` boots the program inside `souldew.cia` (its NCCH, `build/souldew-cia.cxi`)
+  on an empty SD card: first screen + the same plugin check (`docs/screenshots/emu_cia_intro.png`).
 
 Azahar runs in portable mode (a `user/` folder next to `Azahar.app`), silent (audio output "null", volume 0).
 

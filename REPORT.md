@@ -1,8 +1,30 @@
 # souldew-3ds – status report
 
-State of 13 Nov 2026 (redesign, title menu, introduction, achievements, settings – see the first section). Everything below was built with `./build.sh` (Docker toolchain) and tested on a Mac
+State of 14 Nov 2026 (beta packaging – first section; 13 Nov: redesign, title menu, introduction, achievements, settings). Everything below was built with `./build.sh` (Docker toolchain) and tested on a Mac
 (Apple Silicon) with Azahar 2126.2 – **no Pokémon game was available**, so nothing has run inside a real Pokémon
 game yet.
+
+## 14 Nov 2026: beta packaging (0.9.0-beta.1)
+
+| What | Where |
+| --- | --- |
+| **Distribution**: Universal-Updater with souldew's own UniStore (recommended: one QR code, updates in the app, installs the `.cia` *and* the `.3gx`), FBI remote install of the `.cia` by QR code, or an SD card zip – all from one GitHub release with the fixed tag `beta` (stable URLs, so posted QR codes keep working) | `release/souldew.unistore.template`, `tools/make_release.py`, `docs/TESTERS.md`, `docs/RELEASING.md` |
+| **`.cia`** of the launcher: title ID `000400000F5D3D00`, product code `CTR-H-SDEW`, HOME menu icon + banner (rings + wordmark) + a soft synthesised 1.3 s chime; makerom/ctrtool/bannertool pinned in the Docker image | `launcher/cia/`, `launcher/Makefile` (`make cia`), `tools/gen_cia_assets.py` |
+| **The app installs its plugin**: the `.3gx` sits in the RomFS of the `.cia` and the `.3dsx`; every start writes it to `/3ds/souldew/souldew.3gx` when missing or different (`.tmp` + rename) – one file is a complete install | `syncPlugin()` in `launcher/source/main.cpp` |
+| Version `0.9.0-beta.1` (`kVersion`, shown on the title screen and in Settings; the `.cia`'s title version 0.9.0) | `common/screens.h` |
+| Plugin build: header dependencies now tracked (`DEPSDIR`), so a changed header rebuilds the plugin | `plugin/Makefile` |
+
+Verified: `ctrtool --verify` on the `.cia` – exheader, ExeFS, RomFS and content hashes good (ticket/TMD signatures
+are fake, as for every homebrew CIA – Luma3DS' signature patches accept them); ExeFS has code, icon (SMDH "souldew",
+region free, flags visible/allow3d/recordusage), banner (CBMD with CWAV), logo; the RomFS's `souldew.3gx` is byte-identical
+to the plugin. The `.3dsx` carries the same RomFS. In Azahar 2126.2: the launcher demo **and** the `.cia`'s program
+(its NCCH booted directly) each started on an SD card without the plugin and wrote `sdmc:/3ds/souldew/souldew.3gx`,
+identical to the build (`docs/screenshots/emu_cia_intro.png`). The UniStore is valid JSON in the format Universal-Updater's
+source checks (`version` 3, int `revision`, `file` without a slash); both QR codes decode back to their URLs.
+
+Not testable here: installing the `.cia` with FBI / Universal-Updater on a console (no HOME menu, FBI or camera in
+this emulator setup), the HOME menu banner and its sound, Universal-Updater actually reading the store, the download URLs (nothing
+is uploaded yet).
 
 ## 13 Nov 2026: prettier and more complete
 

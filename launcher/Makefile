@@ -2,6 +2,8 @@
 # souldew.3dsx – the launcher (libctru). Based on devkitPro's 3DS application template.
 #   make        → souldew.3dsx (+ .smdh)
 #   make demo   → souldew-demo.3dsx: walks through its screens by itself (emulator screenshots)
+#   make cia    → souldew.cia: the same app for the HOME menu (makerom + bannertool, banner from cia/)
+# romfs/souldew.3gx (copied there by build.sh) travels inside both: the launcher installs the plugin from it.
 #---------------------------------------------------------------------------------
 .SUFFIXES:
 ifeq ($(strip $(DEVKITARM)),)
@@ -18,6 +20,7 @@ APP_TITLE	:=	souldew
 APP_DESCRIPTION	:=	Nuzlocke tracker
 APP_AUTHOR	:=	souldew
 ICON		:=	icon.png
+ROMFS		:=	romfs
 
 ARCH	:=	-march=armv6k -mtune=mpcore -mfloat-abi=hard -mtp=soft
 CFLAGS	:=	-Wall -O2 -mword-relocations -ffunction-sections $(ARCH) $(INCLUDE) -D__3DS__ $(DEFINES)
@@ -39,17 +42,36 @@ export INCLUDE	:=	$(foreach dir,$(INCLUDES),-I$(CURDIR)/$(dir)) $(foreach dir,$(
 export LIBPATHS	:=	$(foreach dir,$(LIBDIRS),-L$(dir)/lib)
 export APP_ICON	:=	$(TOPDIR)/$(ICON)
 export _3DSXFLAGS += --smdh=$(CURDIR)/$(TARGET).smdh
-.PHONY: all demo clean
+ifneq ($(wildcard $(CURDIR)/$(ROMFS)/souldew.3gx),)
+export _3DSXFLAGS += --romfs=$(CURDIR)/$(ROMFS)
+export ROMFS_DEPS := $(CURDIR)/$(ROMFS)/souldew.3gx
+endif
+# the version for the .cia comes from common/screens.h (kVersion "X.Y.Z-…" → major X, minor Y, micro Z)
+VERSION		:=	$(shell sed -n 's/.*kVersion = "\([^"]*\)".*/\1/p' ../common/screens.h)
+VER_NUM		:=	$(firstword $(subst -, ,$(VERSION)))
+VER_MAJOR	:=	$(word 1,$(subst ., ,$(VER_NUM)))
+VER_MINOR	:=	$(word 2,$(subst ., ,$(VER_NUM)))
+VER_MICRO	:=	$(word 3,$(subst ., ,$(VER_NUM)))
+.PHONY: all demo cia clean
 all:
 	@mkdir -p $(BUILD)
 	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
 demo:
 	@$(MAKE) --no-print-directory TARGET=souldew-demo BUILD=build-demo DEFINES=-DSOULDEW_DEMO=1 all
+cia: all
+	@test -f $(ROMFS)/souldew.3gx || { echo "romfs/souldew.3gx missing (build the plugin, copy it there)"; exit 1; }
+	@bannertool makebanner -i cia/banner.png -a cia/banner.wav -o $(BUILD)/banner.bnr >/dev/null
+	@bannertool makesmdh -s "$(APP_TITLE)" -l "$(APP_TITLE) - $(APP_DESCRIPTION)" -p "$(APP_AUTHOR)" -i $(ICON) \
+	   -f visible,allow3d,recordusage -o $(BUILD)/icon-cia.smdh >/dev/null
+	@makerom -f cia -o $(TARGET).cia -target t -exefslogo -rsf cia/souldew.rsf -elf $(TARGET).elf \
+	   -icon $(BUILD)/icon-cia.smdh -banner $(BUILD)/banner.bnr -DAPP_ROMFS=$(ROMFS) \
+	   -major $(VER_MAJOR) -minor $(VER_MINOR) -micro $(VER_MICRO)
+	@echo "built ... $(TARGET).cia ($(VERSION))"
 clean:
-	@rm -rf build build-demo *.3dsx *.smdh *.elf
+	@rm -rf build build-demo *.3dsx *.smdh *.elf *.cia
 else
 DEPENDS	:=	$(OFILES:.o=.d)
-$(OUTPUT).3dsx	:	$(OUTPUT).elf $(OUTPUT).smdh
+$(OUTPUT).3dsx	:	$(OUTPUT).elf $(OUTPUT).smdh $(ROMFS_DEPS)
 $(OUTPUT).elf	:	$(OFILES)
 -include $(DEPENDS)
 endif

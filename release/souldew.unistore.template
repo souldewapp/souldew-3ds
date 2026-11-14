@@ -1,0 +1,76 @@
+{
+    "storeInfo": {
+        "title": "souldew (beta)",
+        "author": "souldew",
+        "description": "souldew's Nuzlocke tracker for Pokemon X/Y, OR/AS, Sun/Moon and US/UM on consoles with Luma3DS 13 or newer. Beta builds.",
+        "file": "souldew.unistore",
+        "url": "{{RELEASE_BASE}}/souldew.unistore",
+        "sheet": "souldew.t3x",
+        "sheetURL": "{{RELEASE_BASE}}/souldew.t3x",
+        "version": 3,
+        "revision": {{REVISION}}
+    },
+    "storeContent": [
+        {
+            "info": {
+                "title": "souldew",
+                "author": "souldew",
+                "version": "{{VERSION}}",
+                "category": ["utility"],
+                "console": ["3DS"],
+                "description": "Nuzlocke tracker: a launcher for your runs and a Luma3DS plugin that follows them in game (encounters, dupes, deaths, level caps). Needs the plugin loader (Rosalina menu).",
+                "license": "gpl-3.0",
+                "icon_index": 0,
+                "sheet_index": 0,
+                "last_updated": "{{DATE}}",
+                "releasenotes": "{{RELEASE_NOTES}}"
+            },
+            "souldew.cia (HOME menu, recommended)": [
+                {
+                    "type": "mkdir",
+                    "directory": "sdmc:/3ds/souldew/"
+                },
+                {
+                    "type": "downloadFile",
+                    "file": "{{RELEASE_BASE}}/souldew.3gx",
+                    "output": "sdmc:/3ds/souldew/souldew.3gx",
+                    "message": "Downloading the plugin (souldew.3gx)..."
+                },
+                {
+                    "type": "downloadFile",
+                    "file": "{{RELEASE_BASE}}/souldew.cia",
+                    "output": "sdmc:/souldew.cia",
+                    "message": "Downloading souldew.cia..."
+                },
+                {
+                    "type": "installCia",
+                    "file": "sdmc:/souldew.cia",
+                    "message": "Installing souldew.cia..."
+                },
+                {
+                    "type": "deleteFile",
+                    "file": "sdmc:/souldew.cia",
+                    "message": "Cleaning up..."
+                }
+            ],
+            "souldew.3dsx (Homebrew Launcher)": [
+                {
+                    "type": "mkdir",
+                    "directory": "sdmc:/3ds/souldew/"
+                },
+                {
+                    "type": "downloadFile",
+                    "file": "{{RELEASE_BASE}}/souldew.3gx",
+                    "output": "sdmc:/3ds/souldew/souldew.3gx",
+                    "message": "Downloading the plugin (souldew.3gx)..."
+                },
+                {
+                    "type": "downloadFile",
+                    "file": "{{RELEASE_BASE}}/souldew.3dsx",
+                    "output": "sdmc:/3ds/souldew/souldew.3dsx",
+                    "message": "Downloading souldew.3dsx..."
+                }
+            ]
+        }
+    ]
+}

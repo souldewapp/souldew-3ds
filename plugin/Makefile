@@ -48,6 +48,7 @@ test:
 clean:
 	@rm -rf build-release build-test *.elf *.3gx
 else
+DEPSDIR	:=	$(CURDIR)
 DEPENDS	:=	$(OFILES:.o=.d)
 $(OUTPUT) : $(basename $(OUTPUT)).elf
 $(basename $(OUTPUT)).elf : $(OFILES)

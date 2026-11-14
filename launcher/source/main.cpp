@@ -7,6 +7,7 @@
 #include <cstring>
 #include <string>
 #include <sys/stat.h>
+#include <vector>
 
 #include "fbblit.h"
 #include "i18n.h"
@@ -125,6 +126,43 @@ static bool askName(std::string &name) {
 
 enum class Launch { Started, NoGame, NoPlugin, LoaderOff, Error };
 
+// The plugin travels inside the launcher (RomFS of the .3dsx and the .cia). On every start it is put at kPluginPath
+// when that file is missing or differs, so a single .cia (FBI) or .3dsx is a complete install and both stay in step
+// after an update. Written as .tmp + rename; nothing happens when there is no RomFS or the copies are equal.
+static bool readAll(const char *path, std::vector<unsigned char> &out) {
+  FILE *f = std::fopen(path, "rb");
+  if (!f) return false;
+  out.clear();
+  unsigned char buf[16 * 1024];
+  size_t n;
+  while ((n = std::fread(buf, 1, sizeof buf, f)) > 0) out.insert(out.end(), buf, buf + n);
+  bool ok = !std::ferror(f);
+  std::fclose(f);
+  return ok;
+}
+
+static void syncPlugin() {
+  if (R_FAILED(romfsInit())) return;
+  std::vector<unsigned char> embedded, onSd;
+  bool have = readAll("romfs:/souldew.3gx", embedded) && !embedded.empty();
+  romfsExit();
+  if (!have) return;
+  const std::string dst = std::string("sdmc:") + kPluginPath, tmp = dst + ".tmp";
+  if (readAll(dst.c_str(), onSd) && onSd == embedded) return;
+  mkdir("sdmc:/3ds", 0777);
+  mkdir("sdmc:/3ds/souldew", 0777);
+  FILE *f = std::fopen(tmp.c_str(), "wb");
+  if (!f) return;
+  bool ok = std::fwrite(embedded.data(), 1, embedded.size(), f) == embedded.size();
+  ok = (std::fclose(f) == 0) && ok;
+  if (!ok) {
+    std::remove(tmp.c_str());
+    return;
+  }
+  std::remove(dst.c_str());  // FAT: rename doesn't replace an existing file
+  std::rename(tmp.c_str(), dst.c_str());
+}
+
 static bool fileExists(const char *path) {
   struct stat st;
   return stat(path, &st) == 0;
@@ -199,6 +237,7 @@ int main(int argc, char **argv) {
   Canvas *fromTop = new Canvas(400, 240), *fromBottom = new Canvas(320, 240);
   Canvas *drawnTop = new Canvas(400, 240), *drawnBottom = new Canvas(320, 240);
   Canvas *banner = new Canvas(400, 240);
+  syncPlugin();
   g_store.load(std::string("sdmc:") + kRunsPath);
   g_lang = langOf(g_store.settings);
   scanTitles();
@@ -293,8 +332,8 @@ int main(int argc, char **argv) {
         break;
       case Launch::NoPlugin:
         message(tr("Plugin fehlt", "Plugin missing"),
-                tr("sdmc:/3ds/souldew/souldew.3gx fehlt. Kopiere es dorthin (siehe README) \xe2\x80\x93 oder starte ohne Overlays.",
-                   "sdmc:/3ds/souldew/souldew.3gx is missing. Copy it there (see README) \xe2\x80\x93 or start without overlays."),
+                tr("sdmc:/3ds/souldew/souldew.3gx fehlt. Starte souldew neu oder installiere es erneut \xe2\x80\x93 oder starte ohne Overlays.",
+                   "sdmc:/3ds/souldew/souldew.3gx is missing. Restart souldew or reinstall it \xe2\x80\x93 or start without overlays."),
                 Tone::Warn, 3, tr("Ohne Overlays starten", "Start without overlays"), tr("Zur\xc3\xbc" "ck", "Back"));
         break;
       case Launch::LoaderOff:
